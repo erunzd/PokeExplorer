@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, KeyboardAvoidingView, Platform
+  View, Text, TextInput, TouchableOpacity, Dimensions, StyleSheet, Image, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
 import auth from '@react-native-firebase/auth';
 
@@ -32,18 +32,28 @@ const LoginScreen = ({ navigation }) => {
           <View style={styles.lensHighlight} />
         </View>
         <View style={styles.lightsContainer}>
-          <View style={[styles.light, { backgroundColor: '#FF0000' }]} />
+          <View style={[styles.light, { backgroundColor: '#A8030A' }]} />
           <View style={[styles.light, { backgroundColor: '#FFDE00' }]} />
           <View style={[styles.light, { backgroundColor: '#3B4CCA' }]} />
         </View>
       </View>
-
+    <Image source={require('../assets/testline.png')}
+          style={styles.headerImg}
+    />
       {/* --- Main Content --- */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.content}
       >
-        <Text style={styles.title}>PokeExp</Text>
+        <View style={styles.titleWrapper}>
+  <Text style={[styles.titleOutline, { top: 3, left: 0 }]}>PokeExp</Text>
+  <Text style={[styles.titleOutline, { top: -3, left: 0 }]}>PokeExp</Text>
+  <Text style={[styles.titleOutline, { top: 0, left: 3 }]}>PokeExp</Text>
+  <Text style={[styles.titleOutline, { top: 0, left: -3 }]}>PokeExp</Text>
+
+  <Text style={styles.title}>PokeExp</Text>
+</View>
+
 
         <View style={styles.imageContainer}>
            {/* Make sure to add your image to src/assets */}
@@ -57,7 +67,7 @@ const LoginScreen = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#FF6B6B"
+          placeholderTextColor="#ff7e7e"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -66,13 +76,13 @@ const LoginScreen = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#FF6B6B"
+          placeholderTextColor="#ff7e7e"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
         />
 
-        <TouchableOpacity>
+        <TouchableOpacity style={styles.forgotContainer}>
           <Text style={styles.forgotPass}>Forgot Password?</Text>
         </TouchableOpacity>
 
@@ -81,6 +91,10 @@ const LoginScreen = ({ navigation }) => {
         </TouchableOpacity>
 
       </KeyboardAvoidingView>
+
+    <Image source={require('../assets/tesline2.png')}
+            style={{bottom: 20,}}
+    />
 
       {/* --- Footer Navigation --- */}
       <TouchableOpacity
@@ -97,21 +111,23 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#DC0A2D', // Pokedex Red
+    backgroundColor: '#FF0000', // Pokedex Red
     paddingTop: 50,
   },
   header: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginBottom: 20,
     alignItems: 'flex-start',
+  },
+  headerImg: {
+    bottom: 30,
   },
   // The Big Blue Circle
   blueLensOuter: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#143B88', // Dark Blue border
+    width: 80,
+    height: 80,
+    borderRadius: 100,
+    backgroundColor: '#4967a4ff', // Dark Blue border
     borderWidth: 4,
     borderColor: '#FFF',
     justifyContent: 'center',
@@ -119,18 +135,18 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   blueLensInner: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 100,
     backgroundColor: '#28AAFD', // Light Blue
   },
   lensHighlight: {
     position: 'absolute',
-    top: 15,
-    left: 15,
+    bottom: 10,
+    left: 30,
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 100,
     backgroundColor: '#8CD5FF', // Glint/Reflection
     opacity: 0.6,
   },
@@ -140,9 +156,9 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   light: {
-    width: 15,
-    height: 15,
-    borderRadius: 7.5,
+    width: 25,
+    height: 25,
+    borderRadius: 100,
     borderWidth: 1,
     borderColor: '#FFF',
     marginRight: 5,
@@ -153,15 +169,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 30,
   },
-  title: {
-    fontSize: 98,
+  titleWrapper: {
+    position: 'relative',
+    marginBottom: 0,  
+  },
+
+  titleOutline: {
+    position: 'absolute',
+    fontSize: 120,
     fontWeight: 'normal',
-    color: '#FFDE00', // Pokemon Yellow
-    textShadowColor: '#2B62C6', // Blue Shadow
+    color: '#3B4CCA',
+    letterSpacing: 1.5,
+    fontFamily: 'BrickSans-Bold',
+  },
+
+  // Keep your original title but remove marginBottom because wrapper handles it
+  title: {
+    fontSize: 120,
+    fontWeight: 'normal',
+    color: '#FFDE00',
+    fontFamily: 'BrickSans-Bold',
     textShadowOffset: { width: 4, height: 4 },
+    letterSpacing: 1.5,  
     textShadowRadius: 2,
-    marginBottom: 20,
-    fontFamily: 'BrickSans-Bold', // Uncomment if you add a custom font
   },
   imageContainer: {
     backgroundColor: '#FFF',
@@ -176,43 +206,49 @@ const styles = StyleSheet.create({
     backgroundColor: '#8FACD6', // Blue background inside picture
   },
   input: {
-    width: '100%',
-    backgroundColor: '#2C2C2C', // Dark Brown/Black
-    borderRadius: 15, // Rounded corners
-    padding: 15,
+    width: '95%',
+    backgroundColor: '#532221', // Dark Brown/Black
+    borderRadius: 5, // Rounded corners
+    padding: 20,
     color: '#FFF',
-    fontSize: 16,
-    marginBottom: 15,
-    borderWidth: 2,
-    borderColor: '#1E1E1E',
+    fontSize: 20,
+    marginBottom: 25,
+    fontFamily: 'BrickSans-Bold',
+    letterSpacing: 1.5,    
+    elevation: 6,
   },
   forgotPass: {
     color: '#FFDE00',
-    alignSelf: 'flex-end',
-    marginBottom: 20,
+    letterSpacing: 1.2,
+    bottom: 10,
+    textAlign: 'right',
     fontSize: 20,
     fontWeight: 'normal',
     fontFamily: 'BrickSans-Bold',
+  },
+  forgotContainer: {
+    width: '100%',
+    alignItems: 'flex-end',
+    paddingRight: 15,
   },
   loginBtn: {
     backgroundColor: '#3B4CCA', // Button Blue
     paddingVertical: 15,
     paddingHorizontal: 60,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#1D2C5E',
+    borderRadius: 5,
     marginTop: 10,
-    elevation: 5,
+    elevation: 6,
   },
   loginText: {
     color: '#FFF',
-    fontSize: 40,
+    fontSize: 20,
     fontWeight: 'normal',
     fontFamily: 'BrickSans-Bold',
+    letterSpacing: 1.2,
   },
   footer: {
+    bottom: 25,
     padding: 20,
-    backgroundColor: '#AA0621', // Darker red footer
     alignItems: 'center',
   },
   footerText: {
