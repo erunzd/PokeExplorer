@@ -1,6 +1,10 @@
-apply plugin: "com.android.application"
-apply plugin: "org.jetbrains.kotlin.android"
-apply plugin: "com.facebook.react"
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.facebook.react'
+    // Add the Google services Gradle plugin
+    id 'com.google.gms.google-services' // <-- ADD THIS LINE
+}
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -116,4 +120,13 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // --- FIREBASE ADDITIONS START HERE ---
+    // Import the Firebase BoM to manage library versions
+    implementation platform('com.google.firebase:firebase-bom:34.6.0') // Use the version Firebase recommended
+
+    // Add dependencies for the services you need
+    implementation 'com.google.firebase:firebase-auth' // For Login/Register
+    implementation 'com.google.firebase:firebase-analytics' // Recommended for tracking
+    // --- FIREBASE ADDITIONS END HERE ---
 }
