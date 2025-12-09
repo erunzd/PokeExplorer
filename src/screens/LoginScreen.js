@@ -17,7 +17,7 @@ const LoginScreen = ({ navigation }) => {
       await auth().signInWithEmailAndPassword(email, password);
       Alert.alert('Success', 'Welcome back, Trainer!');
       // Navigate to your main Home/Pokedex screen here
-      // navigation.replace('Pokedex');
+       navigation.replace('Pokedex');
     } catch (error) {
       Alert.alert('Login Failed', error.message);
     }
