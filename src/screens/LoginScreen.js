@@ -46,13 +46,13 @@ const LoginScreen = ({ navigation }) => {
         style={styles.content}
       >
         <View style={styles.titleWrapper}>
-  <Text style={[styles.titleOutline, { top: 3, left: 0 }]}>PokeExp</Text>
-  <Text style={[styles.titleOutline, { top: -3, left: 0 }]}>PokeExp</Text>
-  <Text style={[styles.titleOutline, { top: 0, left: 3 }]}>PokeExp</Text>
-  <Text style={[styles.titleOutline, { top: 0, left: -3 }]}>PokeExp</Text>
+          <Text style={[styles.titleOutline, { top: 3, left: 0 }]}>PokeExp</Text>
+          <Text style={[styles.titleOutline, { top: -3, left: 0 }]}>PokeExp</Text>
+          <Text style={[styles.titleOutline, { top: 0, left: 3 }]}>PokeExp</Text>
+          <Text style={[styles.titleOutline, { top: 0, left: -3 }]}>PokeExp</Text>
 
-  <Text style={styles.title}>PokeExp</Text>
-</View>
+          <Text style={styles.title}>PokeExp</Text>
+        </View>
 
 
         <View style={styles.imageContainer}>

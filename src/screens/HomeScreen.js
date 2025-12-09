@@ -10,10 +10,63 @@ import {
   TouchableOpacity,
   TextInput,
   Image, // Import Image for the sprites later
+  ImageBackground,
 } from 'react-native';
 import axios from 'axios';
 
+import PokeHeader from '../components/PokeHeader';
+import SearchBar from '../components/SearchBar';
+
+
 const POKEDEX_KEY = '@pokedex_list'; // Key for AsyncStorage
+// Small card component that fetches its own type (cached) and renders the image
+const PokemonCard = ({ item, navigation }) => {
+  const [type, setType] = useState(null);
+  const pokeId = item.url.split('/')[item.url.split('/').length - 2];
+  const TYPE_KEY = `@pokemon_type_${pokeId}`;
+
+  useEffect(() => {
+    let mounted = true;
+    const loadType = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(TYPE_KEY);
+        if (cached) {
+          if (mounted) setType(JSON.parse(cached));
+          return;
+        }
+        const res = await axios.get(item.url);
+        const primary = res.data?.types?.[0]?.type?.name || 'Unknown';
+        if (mounted) {
+          setType(primary);
+          await AsyncStorage.setItem(TYPE_KEY, JSON.stringify(primary));
+        }
+      } catch (e) {
+        if (mounted) setType('Unknown');
+      }
+    };
+    loadType();
+    return () => { mounted = false; };
+  }, [item.url]);
+
+  return (
+    <TouchableOpacity
+      style={styles.cardContainer}
+      onPress={() => navigation.navigate('PokedexDetail', { url: item.url })}
+    >
+      <Image
+        source={{ uri: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokeId}.png` }}
+        style={styles.cardImage}
+        resizeMode="contain"
+      />
+
+      <View style={styles.textContainer}>
+          <Text style={styles.pokeId}>#{pokeId} {item.name.charAt(0).toUpperCase() + item.name.slice(1)}</Text>
+          <Text style={styles.pokeType}>{type ? type.toUpperCase() : '...'}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 // --- MAIN COMPONENT ---
 const HomeScreen = ({ navigation }) => {
   const [pokemonList, setPokemonList] = useState([]);
@@ -65,28 +118,7 @@ const HomeScreen = ({ navigation }) => {
   // ---------------------------------
 
   // Renders a single row in the FlatList
-  const renderItem = ({ item }) => {
-      const pokeId = item.url.split('/')[item.url.split('/').length - 2];
-
-      // The list item must fill half the container width minus margin
-      return (
-        <TouchableOpacity
-          style={styles.cardContainer}
-          onPress={() => navigation.navigate('PokedexDetail', { url: item.url })}
-        >
-          {/* Placeholder for the image */}
-          <View style={styles.imagePlaceholder} />
-
-          <View style={styles.textContainer}>
-              <Text style={styles.pokeId}>#{pokeId} {item.name.charAt(0).toUpperCase() + item.name.slice(1)}</Text>
-              {/* We will fetch the actual type on the detail screen,
-                  but for now, let's use a placeholder until we optimize the API calls. */}
-              <Text style={styles.pokeType}>Ground type</Text>
-          </View>
-
-        </TouchableOpacity>
-      );
-    };
+  const renderItem = ({ item }) => <PokemonCard item={item} navigation={navigation} />;
 
   // --- Loading State Display ---
   if (loading) {
@@ -100,30 +132,34 @@ const HomeScreen = ({ navigation }) => {
 
   // --- Main Render View ---
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerTitle}>Pokédex List</Text>
+    
+    <ImageBackground
+      source={require('../assets/test2.png')}
+      style={styles.background}
+      blurRadius={1}
+    >
+      {/* semi-transparent overlay to act as a backdrop filter */}
+      <View style={styles.backdropOverlay} />
+        <PokeHeader />
+      <View style={styles.content}>
 
-      {/* Search Input Bar */}
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Search Pokémon by name..."
-        placeholderTextColor="#666"
-        value={searchTerm}
-        onChangeText={setSearchTerm} // Updates the searchTerm state
-      />
+        {/* Search Input Bar */}
+      <SearchBar value={searchTerm} onChangeText={setSearchTerm} />
 
-      {/* List Display */}
-      <FlatList
-        data={filteredPokemon}
-        keyExtractor={(item) => item.name}
-        renderItem={renderItem}
 
-        // 🚨 KEY UI CHANGES:
-        numColumns={2} // Sets the grid to two columns
-        columnWrapperStyle={styles.row} // Custom style for the row wrapper
-        contentContainerStyle={styles.listContent}
-      />
-    </View>
+        {/* List Display */}
+        <FlatList
+          data={filteredPokemon}
+          keyExtractor={(item) => item.name}
+          renderItem={renderItem}
+
+          // 🚨 KEY UI CHANGES:
+          numColumns={2} // Sets the grid to two columns
+          columnWrapperStyle={styles.row} // Custom style for the row wrapper
+          contentContainerStyle={styles.listContent}
+        />
+      </View>
+    </ImageBackground>
   );
 };
 
@@ -131,8 +167,21 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 10,
-    backgroundColor: '#FFF',
+    // backgroundColor kept as fallback if image fails to load
+    backgroundColor: '#FF0000',
+  },
+  background: {
+    flex: 1,
+    width: '100%',
+  },
+  backdropOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  content: {
+    flex: 1,
+    paddingTop: 0,
+    padding: 15,
   },
   loadingContainer: {
     flex: 1,
@@ -143,15 +192,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 10,
-  },
-  searchBar: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#CCC',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginHorizontal: 15,
     marginBottom: 10,
   },
   listItem: {
@@ -177,53 +217,51 @@ const styles = StyleSheet.create({
   },
   // src/screens/HomeScreen.js (in StyleSheet.create)
 
-    listContent: {
-      paddingHorizontal: 10,
-    },
-    row: {
-      // Distribute space evenly between the two columns
-      justifyContent: 'space-between',
-      marginBottom: 10,
-    },
-    cardContainer: {
-      // 48% ensures there is a gap between the two cards
-      width: '48%',
-      backgroundColor: 'white',
-      borderRadius: 10,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: '#CCC',
-      elevation: 3, // Android shadow
-      shadowColor: '#000', // iOS shadow
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 3,
-    },
-    imagePlaceholder: {
-      width: '100%',
-      height: 100, // Fixed height for the image area
-      backgroundColor: '#D1FFC3', // Light green background for placeholder
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    textContainer: {
-      padding: 10,
-    },
-    pokeId: {
-      fontSize: 14,
-      color: '#333',
-      fontWeight: 'bold',
-    },
-    pokeType: {
-      fontSize: 12,
-      color: '#666',
-    },
-    // Ensure your searchBar style is also updated for the look
-    searchBar: {
-      // ... existing styles
-      borderRadius: 20, // More rounded corners
-      marginBottom: 15,
-    }
+  listContent: {
+    paddingHorizontal: 10,
+  },
+  row: {
+    // Distribute space evenly between the two columns
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  cardContainer: {
+    // 48% ensures there is a gap between the two card
+    marginTop: 5,
+    width: '48%',
+    backgroundColor: 'white',
+    borderRadius: 5,
+    overflow: 'hidden',
+    elevation: 10, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: 100, // Fixed height for the image area
+    backgroundColor: '#fff', // Light green background for placeholder
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardImage: {
+    width: '100%',
+    height: 100,
+    backgroundColor: '#fff',
+  },
+  textContainer: {
+    padding: 10,
+  },
+  pokeId: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  pokeType: {
+    fontSize: 12,
+    color: '#666',
+  },
 });
 
 export default HomeScreen;

@@ -4,10 +4,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 // Import your screens
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
-import HomeScreen from '../screens/HomeScreen';
-import PokemonDetailScreen from '../screens/PokemonDetailScreen';
+import LoginScreen from '../screens/LoginScreen.js';
+import RegisterScreen from '../screens/RegisterScreen.js';
+import HomeScreen from '../screens/HomeScreen.js';
+import PokemonDetailScreen from '../screens/PokemonDetailScreen.js';
 
 const Stack = createNativeStackNavigator();
 
