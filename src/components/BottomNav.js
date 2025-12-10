@@ -8,7 +8,10 @@ const BottomNav = () => {
 
   const items = [
     { key: 'Pokedex', label: 'PokeDex', routeName: 'Pokedex' },
+    { key: 'Hunt', label: 'Hunt', routeName: 'Hunt' },    
+    { key: 'AR', label: 'AR', routeName: 'AR' },    
     { key: 'Global', label: 'Global', routeName: 'Global' },
+    { key: 'Profile', label: 'Profile', routeName: 'Profile' },        
   ];
 
   return (
