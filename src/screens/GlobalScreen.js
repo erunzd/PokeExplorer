@@ -291,7 +291,7 @@ const GlobalScreen = () => {
             onPress={selectImage}
         >
           <Text style={styles.imageSelectBtnText}>
-            {newPostImageUri ? '✅ Image Selected' : 'Pick Image from Gallery'}
+            {newPostImageUri ? '✅ Image Selected' : 'Select Image'}
           </Text>
           {newPostImageUri && (
             <Text style={styles.imageSelectBtnTextSecondary}>
@@ -351,9 +351,9 @@ const styles = StyleSheet.create({
   },
   // --- New Styles for Image Picker Button ---
   imageSelectBtn: {
-    backgroundColor: '#34C759', // Green for selection
+    backgroundColor: '#fdd400', // Green for selection
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 5,
     alignItems: 'center',
     marginBottom: 8,
   },
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF', // Blue after selection
   },
   imageSelectBtnText: {
-    color: '#fff', 
+    color: '#532221', 
     fontFamily: 'BrickSans-Bold', 
     fontSize: 20,
   },
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF3B30', // Changed Post button color for contrast
     padding: 10,
     elevation: 6, 
-    borderRadius: 6,
+    borderRadius: 5,
     alignItems: 'center',
     marginTop: 5,
   },
