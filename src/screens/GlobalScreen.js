@@ -279,7 +279,7 @@ const GlobalScreen = () => {
       <View style={styles.postBox}>
         <TextInput
           style={styles.input}
-          placeholder="Share your discovery (text)..."
+          placeholder="Share your discovery..."
           value={newPost}
           onChangeText={setNewPost}
           multiline
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   imageSelectedBtn: {
-    backgroundColor: '#007AFF', // Blue after selection
+    backgroundColor: '#3b4cca', // Blue after selection
   },
   imageSelectBtnText: {
     color: '#532221', 
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   },
   // --- End New Styles ---
   postBtn: {
-    backgroundColor: '#FF3B30', // Changed Post button color for contrast
+    backgroundColor: '#3b4cca', // Changed Post button color for contrast
     padding: 10,
     elevation: 6, 
     borderRadius: 5,

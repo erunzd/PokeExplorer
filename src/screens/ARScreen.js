@@ -45,9 +45,9 @@ const ARScreen = () => {
 
             <View style={styles.col}>
                 <Text style={styles.title}>AR CAMERA INFORMATION</Text>
-                <Text style={styles.status}>[] Camera Permissions:</Text>
-                <Text style={styles.status}>[] Sprite Overlay:</Text>
-                <Text style={styles.status}>[] Gyro Detection:</Text>                                                
+                <Text style={styles.status}>[] Camera Permissions: (enabled/disabled)</Text>
+                <Text style={styles.status}>[] Sprite Overlay: 2d Pokemon</Text>
+                <Text style={styles.status}>[] Gyro Detection: (enabled/disabled)</Text>                                                
             </View>
 
             <TouchableOpacity>
