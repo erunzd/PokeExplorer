@@ -11,6 +11,32 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // For caching details
+import BottomNav from '../components/BottomNav';
+import DetailsHeader from '../components/DetailsHeader';
+
+// Map of Pokemon type -> background color (matches common Pokedex palettes)
+const TYPE_COLORS = {
+  normal: '#A8A77A',
+  fire: '#EE8130',
+  water: '#6390F0',
+  electric: '#F7D02C',
+  grass: '#7AC74C',
+  ice: '#96D9D6',
+  fighting: '#C22E28',
+  poison: '#A33EA1',
+  ground: '#E2BF65',
+  flying: '#A98FF3',
+  psychic: '#F95587',
+  bug: '#A6B91A',
+  rock: '#B6A136',
+  ghost: '#735797',
+  dragon: '#6F35FC',
+  dark: '#705746',
+  steel: '#B7B7CE',
+  fairy: '#D685AD',
+};
+
+const getTypeColor = (typeName) => TYPE_COLORS[typeName?.toLowerCase()] || '#777';
 
 const PokemonDetailScreen = ({ route, navigation }) => {
   // 1. Get the URL passed from the HomeScreen list item
@@ -71,57 +97,70 @@ const PokemonDetailScreen = ({ route, navigation }) => {
 
   // --- Main Render: Display Details ---
   return (
-    <ScrollView style={styles.container}>
+    <View style={{ flex: 1 }}>
+      <DetailsHeader />      
+      <ScrollView style={styles.container}>
 
-      {/* Name and ID Header */}
-      <View style={styles.header}>
-        <Text style={styles.nameText}>#{id} {name.toUpperCase()}</Text>
-      </View>
+        {/* Name and ID Header */}
+        <View style={styles.header}>
+          <Text style={styles.nameText}>#{id} {name.toUpperCase()}</Text>
+        </View>
 
-      {/* Sprite Image */}
-      <View style={styles.imageContainer}>
-          <Image
-            // Use the official front default sprite
-            source={{ uri: sprites.front_default }}
-            style={styles.spriteImage}
-          />
-      </View>
+        {/* Sprite Image */}
+        <View style={styles.imageContainer}>
+            <Image
+              // Use the official front default sprite
+              source={{ uri: sprites.front_default }}
+              style={styles.spriteImage}
+            />
+        </View>
 
-      {/* Types Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Types</Text>
-        <View style={styles.typeRow}>
-          {types.map((typeObj, index) => (
-            <Text key={index} style={styles.typeText}>
-              {typeObj.type.name.toUpperCase()}
+        {/* Types Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Types</Text>
+          <View style={styles.typeRow}>
+            {types.map((typeObj, index) => {
+              const t = typeObj.type.name;
+              return (
+                <Text
+                  key={index}
+                  style={[
+                    styles.typeText,
+                    { backgroundColor: getTypeColor(t), color: getTypeColor(t) ? '#fff' : '#000' },
+                  ]}
+                >
+                  {t.toUpperCase()}
+                </Text>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Stats Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Base Stats</Text>
+          {stats.map((statObj, index) => (
+            <View key={index} style={styles.statRow}>
+              <Text style={styles.statName}>{statObj.stat.name.toUpperCase()}:</Text>
+              <Text style={styles.statValue}>{statObj.base_stat}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Abilities Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Abilities</Text>
+          {abilities.map((abilityObj, index) => (
+            <Text key={index} style={styles.abilityText}>
+              {abilityObj.ability.name.toUpperCase()}
             </Text>
           ))}
         </View>
-      </View>
 
-      {/* Stats Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Base Stats</Text>
-        {stats.map((statObj, index) => (
-          <View key={index} style={styles.statRow}>
-            <Text style={styles.statName}>{statObj.stat.name.toUpperCase()}:</Text>
-            <Text style={styles.statValue}>{statObj.base_stat}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Abilities Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionHeader}>Abilities</Text>
-        {abilities.map((abilityObj, index) => (
-          <Text key={index} style={styles.abilityText}>
-            {abilityObj.ability.name.toUpperCase()}
-          </Text>
-        ))}
-      </View>
-
-      <View style={{ height: 50 }} />
-    </ScrollView>
+        <View style={{ height: 80 }} />
+      </ScrollView>
+      <BottomNav />
+    </View>
   );
 };
 
@@ -130,7 +169,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF',
-    padding: 15,
+    padding: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -141,8 +180,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     borderBottomWidth: 2,
-    borderBottomColor: '#EEE',
+    borderBottomColor: '#fff',
     paddingBottom: 10,
+    fontFamily: 'BrickSans-Bold',
   },
   nameText: {
     fontSize: 30,
@@ -161,8 +201,9 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 15,
     padding: 10,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderRadius: 5,
+    marginBottom: 15,
   },
   sectionHeader: {
     fontSize: 20,
@@ -177,12 +218,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   typeText: {
-    fontSize: 16,
-    padding: 5,
+    fontSize: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 5,
-    backgroundColor: '#DC0A2D', // Red background for types
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '700',
+    overflow: 'hidden',
   },
   statRow: {
     flexDirection: 'row',
