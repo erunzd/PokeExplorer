@@ -136,10 +136,8 @@ const GlobalScreen = () => {
         failOnCancel: false,
     };
 
-    let photoUrl = post.photo;
-
-    if (photoUrl && (photoUrl.startsWith('file://') || photoUrl.startsWith('content://'))) {
-        shareOptions.url = photoUrl;
+    if (post.photo) {
+        shareOptions.url = post.photo;
     }
 
     try {
