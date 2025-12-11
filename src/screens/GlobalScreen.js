@@ -10,6 +10,7 @@ import {
   ImageBackground,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 
 // --- REQUIRED EXTERNAL LIBRARIES ---
@@ -18,22 +19,21 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 
 // 🚨 FIREBASE IMPORTS 🚨
-import { firestore } from '../config/firebaseConfig'; // <-- IMPORT FIRESTORE INSTANCE
+import { firestore, storage } from '../config/firebaseConfig';
 
 // Assuming these components exist
 import BottomNav from '../components/BottomNav';
 import GlobalHeader from '../components/GlobalHeader';
 
-// --- STORAGE KEYS & FIREBASE PATH ---
-const LIKES_STORAGE_KEY = '@LikedPostIds';   // Local storage for tracking current user's likes
-const DISCOVERIES_COLLECTION = 'discoveries'; // Firestore collection name
+// --- CONSTANTS ---
+const LIKES_STORAGE_KEY = '@LikedPostIds';
+const DISCOVERIES_COLLECTION = 'discoveries';
 
-// --- INITIAL STATIC DATA (Used to seed the database if it's empty) ---
+// --- INITIAL STATIC DATA (Seeding data) ---
 const INITIAL_STATIC_DISCOVERIES = [
   {
     id: '1',
     userName: 'Ash',
-    // Firestore will replace this with a server timestamp upon seeding
     timestamp: Date.now() - 86400000,
     content: 'Just caught a Pikachu! ⚡️',
     likesCount: 12,
@@ -57,77 +57,39 @@ const INITIAL_STATIC_DISCOVERIES = [
 ];
 
 const GlobalScreen = () => {
+  // ------------------------------------
+  // 1. STATE HOOKS (MUST be declared first)
+  // ------------------------------------
   const [discoveries, setDiscoveries] = useState([]);
   const [newPost, setNewPost] = useState('');
   const [newPostImageUri, setNewPostImageUri] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
 
-  // --- 1. FIRESTORE LISTENER (Read Data) ---
-  useEffect(() => {
-    // Helper to load locally liked post IDs
-    const loadLocalLikes = async () => {
-        try {
-            const storedLikes = await AsyncStorage.getItem(LIKES_STORAGE_KEY);
-            return storedLikes ? JSON.parse(storedLikes) : [];
-        } catch (e) {
-            console.error("Failed to load local likes:", e);
-            return [];
-        }
-    };
+  // ------------------------------------------------------------------
+  // 2. CALLBACK HOOKS (Declared next, FIXES HOOK ORDERING VIOLATION)
+  // ------------------------------------------------------------------
 
-    // Setup Firestore listener for real-time updates
-    const unsubscribe = firestore()
-        .collection(DISCOVERIES_COLLECTION)
-        .orderBy('timestamp', 'desc') // Order by latest post first
-        .onSnapshot(async (querySnapshot) => {
-            const likedIds = await loadLocalLikes();
-            const loadedPosts = [];
+  const loadLocalLikes = useCallback(async () => {
+      try {
+          const storedLikes = await AsyncStorage.getItem(LIKES_STORAGE_KEY);
+          return storedLikes ? JSON.parse(storedLikes) : [];
+      } catch (e) {
+          console.error("Failed to load local likes:", e);
+          return [];
+      }
+  }, []);
 
-            querySnapshot.forEach(documentSnapshot => {
-                const postData = documentSnapshot.data();
-
-                // Ensure timestamp exists before parsing (can be null during seeding)
-                const postTimestamp = postData.timestamp ? postData.timestamp.toDate().getTime() : Date.now();
-
-                loadedPosts.push({
-                    id: documentSnapshot.id,
-                    ...postData,
-                    timestamp: postTimestamp, // Convert Firestore Timestamp object to JS ms
-                    // Set local 'likedByCurrentUser' state
-                    likedByCurrentUser: likedIds.includes(documentSnapshot.id),
-                });
-            });
-
-            // Seed database if empty (optional, but ensures first run works)
-            if (loadedPosts.length === 0) {
-                 INITIAL_STATIC_DISCOVERIES.forEach(post => {
-                    firestore().collection(DISCOVERIES_COLLECTION).doc(post.id).set(post);
-                });
-            }
-
-            setDiscoveries(loadedPosts);
-            setIsLoading(false);
-        },
-        (error) => {
-            console.error("Firestore Listener Failed:", error);
-            setIsLoading(false);
-            Alert.alert('Data Error', 'Failed to load community feed.');
-        });
-
-    // Clean up the listener on component unmount
-    return () => unsubscribe();
-  }, []); // Empty dependency array means this runs only on mount/unmount
-
-
-  // --- 2. LIKE/UNLIKE HANDLER (Update Data with Atomic Increment) ---
   const handleLike = useCallback(async (postId) => {
     const postToLike = discoveries.find(p => p.id === postId);
     if (!postToLike) return;
 
+    const firestoreInstance = firestore();
+
     const action = postToLike.likedByCurrentUser ? -1 : 1;
     let updatedLikes = [];
 
-    // Optimistic Local State Update (updates the UI immediately)
+    // Optimistic Local State Update
     setDiscoveries((prev) => {
       const newDiscoveries = prev.map((post) => {
         if (post.id === postId) {
@@ -148,27 +110,23 @@ const GlobalScreen = () => {
       return newDiscoveries;
     });
 
-    // Atomic Firestore Update (updates the global like count reliably)
-    firestore()
+    // Atomic Firestore Update
+    firestoreInstance
         .collection(DISCOVERIES_COLLECTION)
         .doc(postId)
         .update({
-            likesCount: firestore.FieldValue.increment(action)
+            likesCount: firestoreInstance.FieldValue.increment(action)
         })
         .then(() => {
-            // Save local liked IDs only after the cloud update is confirmed
             AsyncStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(updatedLikes));
         })
         .catch((error) => {
             console.error('Firestore Like Failed:', error);
-            // NOTE: If this fails, the Firebase listener will correct the local `likesCount`
-            // on the next snapshot, but the `likedByCurrentUser` state might be wrong
-            // until the user manually corrects it or restarts the app.
+            Alert.alert('Error', 'Failed to update like count.');
         });
   }, [discoveries]);
 
 
-  // --- 3. SHARING LOGIC (External Feature) ---
   const handleShare = useCallback(async (post) => {
     const message = `Check out ${post.userName}'s Pokémon Discovery: "${post.content}" #PokeExplorer #Pokemon`;
 
@@ -180,7 +138,6 @@ const GlobalScreen = () => {
 
     let photoUrl = post.photo;
 
-    // Use local URI if available for direct sharing
     if (photoUrl && (photoUrl.startsWith('file://') || photoUrl.startsWith('content://'))) {
         shareOptions.url = photoUrl;
     }
@@ -195,7 +152,6 @@ const GlobalScreen = () => {
   }, []);
 
 
-  // --- 4. IMAGE PICKER LOGIC ---
   const selectImage = useCallback(() => {
     const options = {
       mediaType: 'photo',
@@ -206,39 +162,140 @@ const GlobalScreen = () => {
       if (response.assets && response.assets.length > 0) {
         const uri = response.assets[0].uri;
         setNewPostImageUri(uri);
+      } else if (response.errorMessage) {
+          Alert.alert('Image Error', response.errorMessage);
       }
     });
   }, []);
 
 
-  // --- 5. POST HANDLER (Create Data) ---
-  const handlePostDiscovery = () => {
+  // ------------------------------------
+  // 3. EFFECT HOOKS (Declared next)
+  // ------------------------------------
+  useEffect(() => {
+    const firestoreInstance = firestore();
+
+    const unsubscribe = firestoreInstance
+        .collection(DISCOVERIES_COLLECTION)
+        .orderBy('timestamp', 'desc')
+        .onSnapshot(async (querySnapshot) => {
+            const likedIds = await loadLocalLikes();
+            const loadedPosts = [];
+
+            querySnapshot.forEach(documentSnapshot => {
+                const postData = documentSnapshot.data();
+
+                // 🌟 FIX: Defensive Timestamp Conversion 🌟
+                let postTimestamp;
+
+                if (postData.timestamp && typeof postData.timestamp.toDate === 'function') {
+                    // Case 1: Firestore Timestamp object
+                    postTimestamp = postData.timestamp.toDate().getTime();
+                } else if (typeof postData.timestamp === 'number') {
+                    // Case 2: Standard JavaScript number (from seed data)
+                    postTimestamp = postData.timestamp;
+                } else {
+                    // Fallback (if serverTimestamp() is still pending or invalid)
+                    postTimestamp = Date.now();
+                }
+
+                loadedPosts.push({
+                    id: documentSnapshot.id,
+                    ...postData,
+                    timestamp: postTimestamp,
+                    likedByCurrentUser: likedIds.includes(documentSnapshot.id),
+                });
+            });
+
+            // Seed database if empty
+            if (loadedPosts.length === 0) {
+                 INITIAL_STATIC_DISCOVERIES.forEach(post => {
+                    firestoreInstance.collection(DISCOVERIES_COLLECTION).doc(post.id).set(post);
+                });
+            }
+
+            setDiscoveries(loadedPosts);
+            setIsLoading(false);
+        },
+        (error) => {
+            console.error("Firestore Listener Failed:", error);
+            setIsLoading(false);
+            Alert.alert('Data Error', 'Failed to load community feed.');
+        });
+
+    return () => unsubscribe();
+  }, [loadLocalLikes]);
+
+
+  // --- 4. POST HANDLER (Function definition) ---
+  const handlePostDiscovery = async () => {
     if (!newPost.trim() && !newPostImageUri) {
       Alert.alert('Cannot Post', 'Please enter some content or select a photo.');
       return;
     }
 
-    const newDiscoveryData = {
-      userName: 'You',
-      // Guaranteed server-side timestamp
-      timestamp: firestore.FieldValue.serverTimestamp(),
-      content: newPost.trim(),
-      likesCount: 0,
-      comments: [],
-      photo: newPostImageUri,
-      profilePhoto: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/6.png',
-    };
+    setIsPosting(true);
+    let downloadUrl = null;
 
-    // Post to Firestore - listener handles the UI update
-    firestore()
-        .collection(DISCOVERIES_COLLECTION)
-        .add(newDiscoveryData)
-        .then(() => console.log('Post sent to Firestore!'))
-        .catch(error => Alert.alert('Post Error', error.message));
+    try {
+      const firestoreInstance = firestore();
+      const storageInstance = storage();
 
-    // Clear inputs immediately
-    setNewPost('');
-    setNewPostImageUri(null);
+      if (newPostImageUri) {
+        // 1. Setup paths
+        const filename = newPostImageUri.substring(newPostImageUri.lastIndexOf('/') + 1);
+        const storageRef = storageInstance.ref(`discoveries/${Date.now()}_${filename}`);
+
+        // 🌟 FIX: URI Cleaning for Storage Upload 🌟
+        // Remove file:// prefix, which often causes putFile to fail (object-not-found error)
+        let uploadUri = newPostImageUri;
+        if (uploadUri.startsWith('file://')) {
+            uploadUri = uploadUri.replace('file://', '');
+        }
+
+        console.log("Cleaned URI being used for upload:", uploadUri);
+
+        // 2. Upload file
+        await storageRef.putFile(uploadUri);
+        console.log("File upload successful!");
+
+        // 3. Get the public download URL
+        downloadUrl = await storageRef.getDownloadURL();
+        console.log("Download URL received:", downloadUrl);
+      }
+
+      // 4. Create the post data
+      const newDiscoveryData = {
+        userName: 'You',
+        timestamp: firestoreInstance.FieldValue.serverTimestamp(),
+        content: newPost.trim(),
+        likesCount: 0,
+        comments: [],
+        photo: downloadUrl,
+        profilePhoto: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/6.png',
+      };
+
+      // 5. Post document to Firestore
+      await firestoreInstance
+          .collection(DISCOVERIES_COLLECTION)
+          .add(newDiscoveryData);
+
+      Alert.alert('Success!', 'Your discovery has been posted.');
+
+    } catch (error) {
+      console.error('Posting Error (Upload or Firestore):', error.message, error.code);
+
+      if (error.code && error.code.includes('storage/unauthorized')) {
+          Alert.alert('Post Failed: Permissions', 'Check your Firebase Storage Security Rules.');
+      } else {
+          Alert.alert('Post Error', `Failed to upload or post: ${error.message}`);
+      }
+    } finally {
+      // 6. Cleanup
+      setNewPost('');
+      setNewPostImageUri(null);
+      setIsPosting(false);
+    }
   };
 
 
@@ -256,7 +313,6 @@ const GlobalScreen = () => {
           />
           <View style={styles.headerText}>
             <Text style={styles.userName}>{post.userName}</Text>
-            {/* Display time formatted from JS Date object */}
             <Text style={styles.timestamp}>
                 {new Date(post.timestamp).toLocaleDateString()}
             </Text>
@@ -274,17 +330,14 @@ const GlobalScreen = () => {
         {post.content.trim() !== '' && <Text style={styles.content}>{post.content}</Text>}
 
         <View style={styles.actions}>
-          {/* Like Button */}
           <TouchableOpacity onPress={() => handleLike(post.id)}>
             <Text style={[styles.actionBtn, post.likedByCurrentUser && styles.liked]}>
               {post.likedByCurrentUser ? '❤️' : '♡'} {post.likesCount}
             </Text>
           </TouchableOpacity>
 
-          {/* Comments Count */}
           <Text style={styles.actionBtn}>💬 {post.comments.length}</Text>
 
-          {/* Share Button */}
           <TouchableOpacity onPress={() => handleShare(post)}>
             <Text style={[styles.actionBtn, styles.shareBtn]}>
                 🔗 Share
@@ -306,6 +359,9 @@ const GlobalScreen = () => {
     );
   };
 
+  // ------------------------------------
+  // 5. CONDITIONAL RENDER (AFTER ALL HOOKS)
+  // ------------------------------------
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -324,7 +380,7 @@ const GlobalScreen = () => {
       <View style={styles.backdropOverlay} />
         <GlobalHeader />
         <View style={styles.container}>
-      {/* NEW POST */}
+      {/* NEW POST INPUT */}
       <View style={styles.postBox}>
         <TextInput
           style={styles.input}
@@ -334,10 +390,10 @@ const GlobalScreen = () => {
           multiline
         />
 
-        {/* --- IMAGE PICKER BUTTON --- */}
         <TouchableOpacity
             style={[styles.imageSelectBtn, newPostImageUri && styles.imageSelectedBtn]}
             onPress={selectImage}
+            disabled={isPosting}
         >
           <Text style={styles.imageSelectBtnText}>
             {newPostImageUri ? '✅ Image Selected' : 'Select Image'}
@@ -349,8 +405,14 @@ const GlobalScreen = () => {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.postBtn} onPress={handlePostDiscovery}>
-          <Text style={styles.postBtnText}>Post Discovery</Text>
+        <TouchableOpacity
+          style={[styles.postBtn, isPosting && styles.disabledPostBtn]}
+          onPress={handlePostDiscovery}
+          disabled={isPosting}
+        >
+          <Text style={styles.postBtnText}>
+            {isPosting ? 'Posting...' : 'Post Discovery'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -368,7 +430,7 @@ const GlobalScreen = () => {
   );
 };
 
-// --- STYLES (No Change) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -410,7 +472,7 @@ const styles = StyleSheet.create({
   },
   imageSelectBtnText: {
     color: '#532221',
-    fontFamily: 'BrickSans-Bold',
+    // fontFamily: 'BrickSans-Bold',
     fontSize: 20,
   },
   imageSelectBtnTextSecondary: {
@@ -425,9 +487,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 5,
   },
+  disabledPostBtn: {
+    opacity: 0.6,
+  },
   postBtnText: {
     color: '#fff',
-    fontFamily: 'BrickSans-Bold',
+    // fontFamily: 'BrickSans-Bold',
     fontSize: 20,
     letterSpacing: 1.2,
   },
@@ -453,7 +518,7 @@ const styles = StyleSheet.create({
   },
   headerText: { justifyContent: 'center' },
   userName: {
-    fontFamily: 'BrickSans-Bold',
+    // fontFamily: 'BrickSans-Bold',
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 0.5
