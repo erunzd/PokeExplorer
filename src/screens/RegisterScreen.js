@@ -153,8 +153,8 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   light: {
-    width: 25,
-    height: 25,
+    width: 15,
+    height: 15,
     borderRadius: 100,
     borderWidth: 1,
     borderColor: '#FFF',
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
 
   titleOutline: {
     position: 'absolute',
-    fontSize: 70,
+    fontSize: 100,
     fontWeight: 'normal',
     color: '#3B4CCA',
     letterSpacing: 1.5,
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
 
   // Keep your original title but remove marginBottom because wrapper handles it
   title: {
-    fontSize: 70,
+    fontSize: 100,
     fontWeight: 'normal',
     color: '#FFDE00',
     fontFamily: 'BrickSans-Bold',

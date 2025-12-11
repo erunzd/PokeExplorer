@@ -265,17 +265,17 @@ const ARScreen = ({ navigation }) => {
             {/* Gallery Button */}
             <TouchableOpacity
                 onPress={handleGallery}
-                style={styles.buttonContainer}
+                style={[styles.buttonContainer, {backgroundColor: '#fdd400'}]}
             >
-                <Text style={styles.buttonText}>Gallery</Text>
+                <Text style={[styles.buttonText, {color: '#532221'}]}>Gallery</Text>
             </TouchableOpacity>
         </View>
 
         <View style={styles.col}>
             <Text style={styles.title}>AR CAMERA INFORMATION</Text>
-            <Text style={styles.status}>[ ] Camera Permissions: ({cameraPermissionStatus})</Text>
-            <Text style={styles.status}>[ ] Sprite Overlay: {isPokemonVisible ? `${currentPokemonName} (2D)` : 'None'}</Text>
-            <Text style={styles.status}>[ ] Capture Status: {isCapturing ? 'Saving...' : 'Ready'}</Text>
+            <Text style={styles.status}>Camera Permissions: ({cameraPermissionStatus})</Text>
+            <Text style={styles.status}>Sprite Overlay: {isPokemonVisible ? `${currentPokemonName} (2D)` : 'None'}</Text>
+            <Text style={styles.status}>Capture Status: {isCapturing ? 'Saving...' : 'Ready'}</Text>
         </View>
 
        <BottomNav />
@@ -368,9 +368,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 30,
+    fontSize: 24,
     letterSpacing: 1.2,
     textAlign: 'center',
+    fontFamily: 'BrickSans-Bold',
   },
   disabledBtn: {
     opacity: 0.5,
@@ -388,6 +389,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     letterSpacing: 1.2,
     marginBottom: 5,
+    fontFamily: 'BrickSans-Bold',
   },
   status: {
     fontSize: 16,

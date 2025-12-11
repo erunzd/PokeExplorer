@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 25,
+    bottom: 40,
     alignItems: 'center',
     justifyContent: 'center',
     height: 90,
@@ -49,10 +49,10 @@ const styles = StyleSheet.create({
   nav: {
     flexDirection: 'row',
     backgroundColor: '#532221',
-    paddingHorizontal: 8,
-    paddingVertical: 30,
-    width: '100%',
-    justifyContent: 'space-around',
+    paddingVertical: 15,
+    borderRadius: 5,
+    width: '90%',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
     elevation: 6,
     shadowColor: '#000',
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   label: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
   },
   active: {
