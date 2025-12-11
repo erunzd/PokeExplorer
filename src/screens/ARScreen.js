@@ -131,12 +131,6 @@ const ARScreen = () => {
         });
     };
 
-    // The handleVoiceSearch function was defined but not used in your provided code
-    // const handleVoiceSearch = () => {
-    //     Alert.alert("Voice Search", "Voice recognition feature initiated. Searching for Pokémon...");
-    // };
-
-
   return (
     <ImageBackground
         source={require('../assets/test2.png')}
@@ -189,12 +183,23 @@ const ARScreen = () => {
 
       <View style={styles.container}>
         <View style={styles.row}>
-            <TouchableOpacity onPress={handleCapture} disabled={!hasPermission || !isPokemonVisible}>
-                <Text style={[styles.btn, (!hasPermission || !isPokemonVisible) && styles.disabledBtn]}>Capture</Text>
+            {/* FIX 1: Apply button styling to TouchableOpacity */}
+            <TouchableOpacity
+                onPress={handleCapture}
+                disabled={!hasPermission || !isPokemonVisible}
+                style={[styles.buttonContainer, (!hasPermission || !isPokemonVisible) && styles.disabledBtn]} // <-- Apply button container styles here
+            >
+                {/* Apply text styling to Text component */}
+                <Text style={styles.buttonText}>Capture</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleGallery}>
-                <Text style={styles.btn}>Gallery</Text>
+            {/* FIX 2: Apply button styling to TouchableOpacity */}
+            <TouchableOpacity
+                onPress={handleGallery}
+                style={styles.buttonContainer} // <-- Apply button container styles here
+            >
+                {/* Apply text styling to Text component */}
+                <Text style={styles.buttonText}>Gallery</Text>
             </TouchableOpacity>
         </View>
 
@@ -211,7 +216,7 @@ const ARScreen = () => {
   );
 };
 
-// --- UPDATED STYLES (Centering fix applied to pokemonContainer) ---
+// --- UPDATED STYLES (Button fix applied) ---
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -241,8 +246,8 @@ const styles = StyleSheet.create({
     marginTop: 60,
     position: 'relative',
     overflow: 'hidden',
-    justifyContent: 'center', // Added for centering fallback
-    alignItems: 'center',   // Added for centering fallback
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pokemonLoading: {
     position: 'absolute',
@@ -256,18 +261,15 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
-  // 💡 CENTERING FIX APPLIED HERE:
+  // CENTERING FIX
   pokemonContainer: {
-    // 1. Fill the entire parent camera view
     position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-
-    // 2. Use flexbox to center its children (the Image and Text)
-    justifyContent: 'center', // Centers vertically
-    alignItems: 'center',   // Centers horizontally
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 10,
   },
 
@@ -291,19 +293,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 20,
   },
-  btn: {
+
+  // 💡 NEW STYLE: FOR THE <TouchableOpacity> CONTAINER
+  buttonContainer: {
     backgroundColor: '#3b4cca',
-    color: '#fff',
     paddingHorizontal: 35,
     borderRadius: 5,
     elevation: 6,
     padding: 20,
+    flex: 1, // Ensures buttons share space in the row
+  },
+
+  // 💡 NEW STYLE: FOR THE <Text> ELEMENT
+  buttonText: {
+    color: '#fff', // Text color
     fontSize: 30,
-     fontFamily: 'BrickSans-Bold',
+    fontFamily: 'BrickSans-Bold',
     letterSpacing: 1.2,
     textAlign: 'center',
-    flex: 1,
   },
+
+  // Removed old 'btn' style as its properties were split
+
   disabledBtn: {
     opacity: 0.5,
   },
@@ -327,26 +338,6 @@ const styles = StyleSheet.create({
     color: '#532221',
     fontWeight: '500',
     paddingVertical: 2,
-  },
-  // The following styles were unused in your render function but kept for completeness
-  vsbtn: {
-    backgroundColor: '#fdd400',
-    marginTop: 20,
-    textAlign: 'center',
-    color: '#532221',
-    paddingHorizontal: 35,
-    borderRadius: 5,
-    elevation: 6,
-    padding: 20,
-    fontSize: 30,
-     fontFamily: 'BrickSans-Bold',
-    letterSpacing: 1.2,
-  },
-  vstxt: {
-    color: '#fff',
-    fontSize: 16,
-    paddingVertical: 5,
-    fontStyle: 'italic',
   },
 });
 
