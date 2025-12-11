@@ -151,43 +151,64 @@ const GlobalScreen = () => {
     }
   }, []);
 
-  const selectImage = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-          {
-            title: 'Storage Permission',
-            message: 'App needs access to your photos to select images.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert('Permission Denied', 'Cannot access photos without permission.');
-          return;
+const requestStoragePermission = async () => {
+  if (Platform.OS !== 'android') return true;
+
+  try {
+    if (Platform.Version >= 33) { // Android 13+
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+        {
+          title: 'Storage Permission',
+          message: 'App needs access to your photos to select images.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
         }
-      } catch (err) {
-        console.warn('Permission request failed:', err);
-        return;
-      }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } else {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+        {
+          title: 'Storage Permission',
+          message: 'App needs access to your photos to select images.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
     }
+  } catch (err) {
+    console.warn('Permission request failed:', err);
+    return false;
+  }
+};
 
-    const options = {
-      mediaType: 'photo',
-      includeBase64: false,
-    };
+// Then in your selectImage:
 
-    launchImageLibrary(options, (response) => {
-      if (response.assets && response.assets.length > 0) {
-        const uri = response.assets[0].uri;
-        setNewPostImageUri(uri);
-      } else if (response.errorMessage) {
-        Alert.alert('Image Error', response.errorMessage);
-      }
-    });
-  }, []);
+const selectImage = useCallback(async () => {
+  const hasPermission = await requestStoragePermission();
+  if (!hasPermission) {
+    Alert.alert('Permission Denied', 'Cannot access photos without permission.');
+    return;
+  }
+
+  const options = {
+    mediaType: 'photo',
+    includeBase64: false,
+  };
+
+  launchImageLibrary(options, (response) => {
+    if (response.assets && response.assets.length > 0) {
+      const uri = response.assets[0].uri;
+      setNewPostImageUri(uri);
+    } else if (response.errorMessage) {
+      Alert.alert('Image Error', response.errorMessage);
+    }
+  });
+}, []);
 
   // ------------------------------------
   // 3. EFFECT HOOKS (Declared next)
