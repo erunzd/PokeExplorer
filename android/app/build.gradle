@@ -129,4 +129,9 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth' // For Login/Register
     implementation 'com.google.firebase:firebase-analytics' // Recommended for tracking
     // --- FIREBASE ADDITIONS END HERE ---
+
+    implementation project(':react-native-maps')
+    // This is often required for react-native-maps to work:
+    implementation 'com.google.android.gms:play-services-base:18.4.0'
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
 }
