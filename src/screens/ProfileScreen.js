@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// src/screens/ProfileScreen.js
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,17 +21,12 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import BottomNav from '../components/BottomNav';
 import ProfileHeader from '../components/ProfileHeader';
 
-const mockGalleryImages = [
-  { id: '1', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png' },
-  { id: '2', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png' },
-  { id: '3', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png' },
-  { id: '4', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png' },
-  { id: '5', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png' },
-  { id: '6', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/143.png' },
-  { id: '7', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png' },
-  { id: '8', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png' },
-];
 
+// CONSTANT: Key for storing capture data (Must match ARScreen.js)
+const CAPTURES_KEY = '@pokemon_captures_gallery';
+
+
+// Sample badges with titles (Static, kept for layout)
 const sampleBadges = [
   { id: '1', title: 'Kanto', obtained: true },
   { id: '2', title: 'Johto', obtained: true },
@@ -50,25 +47,61 @@ const ProfileScreen = ({ navigation }) => {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [pokemonCount, setPokemonCount] = useState(0);
 
+  // STATE: To hold the actual captured photo data
+  const [capturedPhotos, setCapturedPhotos] = useState([]);
+
+
+  // --- Load Gallery Data ---
+  const loadCapturedPhotos = useCallback(async () => {
+    try {
+      const capturesJSON = await AsyncStorage.getItem(CAPTURES_KEY);
+      if (capturesJSON) {
+        const captures = JSON.parse(capturesJSON);
+        setCapturedPhotos(captures);
+      } else {
+        setCapturedPhotos([]);
+      }
+    } catch (error) {
+      console.error('Error loading captured photos:', error);
+    }
+  }, []);
+  // --- End Load Gallery Data ---
+
+
   useEffect(() => {
     loadUserData();
     loadPokemonCount();
-  }, []);
+    loadCapturedPhotos();
+
+    // Setup listener to reload photos when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+        loadCapturedPhotos();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadCapturedPhotos]);
+
 
   const loadUserData = async () => {
     try {
       const email = await AsyncStorage.getItem('@user_email');
-      if (!email) {
-        navigation.replace('Login');
-        return;
+
+      if (email) {
+        setUserEmail(email);
+        const username = email.split('@')[0];
+        setUserName(username.toUpperCase());
+
+        // Use a unique key that depends on the user's email for the profile image
+        const profileImageKey = `@profile_image_${email.trim()}`;
+
+        // 🚨 FIX 1: Remove duplicate 'savedImage' declaration
+        const savedImageUri = await AsyncStorage.getItem(profileImageKey);
+
+        // This line was causing the error: const savedImage = await AsyncStorage.getItem('@profile_image');
+
+        if (savedImageUri) setProfileImage(savedImageUri);
       }
 
-      setUserEmail(email);
-      setUserName(email.split('@')[0].toUpperCase());
-
-      const key = `@profile_image_${email.trim()}`;
-      const savedImage = await AsyncStorage.getItem(key);
-      if (savedImage) setProfileImage(savedImage);
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -102,20 +135,13 @@ const ProfileScreen = ({ navigation }) => {
     };
 
     launchImageLibrary(options, async (response) => {
-      if (response.didCancel || response.errorCode) return;
+      if (response.assets && response.assets[0]) {
+        const uri = response.assets[0].uri;
+        setProfileImage(uri);
 
-      const uri = response.assets?.[0]?.uri;
-      if (!uri) return;
-
-      setProfileImage(uri);
-
-      try {
-        const email = await AsyncStorage.getItem('@user_email');
-        if (email) {
-          await AsyncStorage.setItem(`@profile_image_${email.trim()}`, uri);
-        }
-      } catch (e) {
-        console.error(e);
+        // Save using the unique key based on the current user's email
+        const key = `@profile_image_${userEmail.trim()}`;
+        await AsyncStorage.setItem(key, uri);
       }
     });
   };
@@ -128,6 +154,33 @@ const ProfileScreen = ({ navigation }) => {
       Alert.alert('Error', 'Failed to logout');
     }
   };
+
+  // --- renderGalleryItem: Renders captured photos ---
+  const renderGalleryItem = ({ item }) => (
+    <View style={styles.galleryItem}>
+      <Image
+        source={{ uri: item.uri }} // Dynamic URI from CameraRoll/AsyncStorage
+        style={styles.galleryImage}
+      />
+      <View style={styles.galleryOverlay}>
+         <Text style={styles.galleryPokemonName}>{item.pokemonName}</Text>
+      </View>
+    </View>
+  );
+
+  const renderBadgeItem = ({ item }) => (
+    <View style={[
+      styles.badgeItem,
+      { backgroundColor: item.obtained ? '#FFCB05' : '#E0E0E0' }
+    ]}>
+      <Text style={[
+        styles.badgeTitle,
+        { color: item.obtained ? '#2C72B8' : '#666' }
+      ]}>
+        {item.title}
+      </Text>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -150,7 +203,7 @@ const ProfileScreen = ({ navigation }) => {
       <ScrollView style={styles.container}>
         <View style={styles.trainerCardContainer}>
           <View style={styles.profileSection}>
-            {/* FULL HEIGHT + FULL WIDTH IMAGE */}
+
             <TouchableOpacity
               style={styles.profileImageContainer}
               onPress={handleImagePicker}
@@ -174,7 +227,6 @@ const ProfileScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            {/* User Info */}
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{userName || 'TRAINER'}</Text>
 
@@ -221,24 +273,25 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Gallery */}
         <View style={styles.sectionContainer}>
           <View style={styles.galleryHeader}>
             <Text style={styles.sectionTitle}>Gallery</Text>
-            <Text style={styles.galleryCount}>51/100</Text>
+            <Text style={styles.galleryCount}>{capturedPhotos.length}</Text>
           </View>
-          <FlatList
-            data={mockGalleryImages}
-            numColumns={4}
-            scrollEnabled={false}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.galleryItem}>
-                <Image source={{ uri: item.uri }} style={styles.galleryImage} />
-              </View>
-            )}
-            contentContainerStyle={styles.galleryGrid}
-          />
+          {capturedPhotos.length === 0 ? (
+            <Text style={styles.emptyGalleryText}>
+                You haven't captured any Pokémon photos yet! Go to AR Camera to catch one.
+            </Text>
+          ) : (
+            <FlatList
+                data={capturedPhotos}
+                renderItem={renderGalleryItem}
+                keyExtractor={(item) => item.id}
+                numColumns={4}
+                scrollEnabled={false}
+                contentContainerStyle={styles.galleryGrid}
+            />
+          )}
         </View>
 
         <TouchableOpacity
@@ -317,7 +370,7 @@ const styles = StyleSheet.create({
   },
   profileImageContainer: {
     width: '40%',
-    height: 350, // Increased height so image fills full card
+    height: 350,
     marginLeft: -20,
     marginTop: -20,
     marginBottom: -20,
@@ -328,7 +381,7 @@ const styles = StyleSheet.create({
   profileImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover', // This makes it fill completely
+    resizeMode: 'cover',
   },
   placeholderImage: {
     backgroundColor: '#DC0A2D',
@@ -389,13 +442,51 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 20,
     elevation: 5,
+    // 🚨 FIX 2: Resolved Conflict Markers and kept all merged styles
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   sectionTitle: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 15 },
   galleryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   galleryCount: { fontSize: 16, color: '#666', fontWeight: '500' },
   galleryGrid: { paddingHorizontal: 5 },
-  galleryItem: { width: '23%', marginHorizontal: '1%', marginBottom: 10 },
-  galleryImage: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#f0f0f0' },
+  galleryItem: {
+    width: '23%',
+    marginHorizontal: '1%',
+    marginBottom: 10,
+    position: 'relative', // Added from stashed changes
+  },
+  galleryImage: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    backgroundColor: '#f0f0f0',
+  },
+  galleryOverlay: { // Added from stashed changes
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    paddingVertical: 2,
+  },
+  galleryPokemonName: { // Added from stashed changes
+    color: 'white',
+    fontSize: 10,
+    textAlign: 'center',
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
+  },
+  emptyGalleryText: { // Added from stashed changes
+    textAlign: 'center',
+    color: '#666',
+    padding: 20,
+    fontStyle: 'italic',
+  },
   logoutButton: {
     backgroundColor: '#DC0A2D',
     borderRadius: 10,

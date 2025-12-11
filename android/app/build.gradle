@@ -128,6 +128,7 @@ dependencies {
     // Add dependencies for the services you need
     implementation 'com.google.firebase:firebase-auth' // For Login/Register
     implementation 'com.google.firebase:firebase-analytics' // Recommended for tracking
+    implementation 'com.google.firebase:firebase-firestore'
     // --- FIREBASE ADDITIONS END HERE ---
 
     implementation project(':react-native-maps')

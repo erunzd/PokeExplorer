@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// src/screens/ARScreen.js
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,16 +14,19 @@ import {
 
 // --- REQUIRED EXTERNAL LIBRARIES ---
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { launchImageLibrary } from 'react-native-image-picker';
 import { useRoute } from '@react-navigation/native';
-import BottomNav from '../components/BottomNav';
 import axios from 'axios';
+import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 
 // AR CAMERA INTEGRATION
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import BottomNav from '../components/BottomNav'; // Assuming this component exists
 
 
-const ARScreen = () => {
+// CONSTANT: Key for storing capture data in AsyncStorage
+const CAPTURES_KEY = '@pokemon_captures_gallery';
+
+const ARScreen = ({ navigation }) => {
     // Get navigation route parameters
     const route = useRoute();
     const {
@@ -32,7 +37,11 @@ const ARScreen = () => {
 
     // Vision Camera Hooks
     const { hasPermission, requestPermission } = useCameraPermission();
+    // Safely attempt to get the back camera device.
     const cameraDevice = useCameraDevice('back');
+
+    // Camera Reference Hook: Allows calling takePhoto()
+    const cameraRef = useRef(null);
 
     // --- STATE FOR DYNAMIC POKEMON DATA ---
     const [pokemonData, setPokemonData] = useState(
@@ -41,17 +50,17 @@ const ARScreen = () => {
         : null
     );
     const [loadingPokemon, setLoadingPokemon] = useState(
-        !initialPokemonId || !initialPokemonName || !initialPokemonSpriteUrl // True if data wasn't passed, meaning we need to fetch
+        !initialPokemonId || !initialPokemonName || !initialPokemonSpriteUrl
     );
-    // --- END NEW STATE ---
 
-    // State for UI status
+    // State for UI status and controls
     const [cameraPermissionStatus, setCameraPermissionStatus] = useState('checking...');
     const [isPokemonVisible, setIsPokemonVisible] = useState(false);
+    const [isCapturing, setIsCapturing] = useState(false);
 
-    // --- MODIFIED API FETCH FUNCTION (Fallback if navigated directly) ---
+    // --- API FETCH FUNCTION (Fallback if navigated directly) ---
     const fetchPokemonSprite = useCallback(async (id = '25') => { // 25 is Pikachu's ID
-        if (pokemonData) return; // Skip if data was pre-filled by route
+        if (pokemonData) return;
 
         try {
             const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${id}`);
@@ -63,10 +72,9 @@ const ARScreen = () => {
             });
 
             // Simulate "spawning"
-            const spawnTimer = setTimeout(() => {
+            setTimeout(() => {
                 setIsPokemonVisible(true);
             }, 1000);
-            return () => clearTimeout(spawnTimer);
 
         } catch (error) {
             console.error("Error fetching Pokémon:", error);
@@ -80,7 +88,7 @@ const ARScreen = () => {
 
     // Initial setup effects
     useEffect(() => {
-        // 1. Request Camera Permission with delay fix
+        // 1. Request Camera Permission
         if (!hasPermission) {
             const delayTimer = setTimeout(() => {
                 requestPermission().then(granted => {
@@ -97,9 +105,8 @@ const ARScreen = () => {
         if (!pokemonData) {
             fetchPokemonSprite(); // Fetch fallback Pokemon (Pikachu)
         } else {
-             // If data was passed, show the Pokemon immediately after load
             setTimeout(() => setIsPokemonVisible(true), 500);
-            setLoadingPokemon(false); // Since data is local
+            setLoadingPokemon(false);
         }
     }, [hasPermission, requestPermission, fetchPokemonSprite, pokemonData]);
 
@@ -115,21 +122,78 @@ const ARScreen = () => {
 
     // --- ACTION HANDLERS ---
     const currentPokemonName = pokemonData ? pokemonData.name : 'Unknown Pokémon';
+    const currentPokemonSprite = pokemonData ? pokemonData.sprite : null;
 
-    const handleCapture = () => {
-        if (!isPokemonVisible) {
-            Alert.alert("No Pokémon Found", "Point your camera at a landmark to find a Pokémon!");
+
+    // --- handleCapture: TAKE PHOTO AND SAVE TO ASYNCSTORAGE ---
+    const handleCapture = async () => {
+        if (!isPokemonVisible || isCapturing || !cameraRef.current) {
+            Alert.alert("Error", "Pokémon not visible or camera not ready.");
             return;
         }
-        Alert.alert("Capture!", `You attempted to capture ${currentPokemonName}! (Add photo/saving logic here)`);
+
+        // CRITICAL CHECK: Ensure camera device is ready
+        if (!cameraDevice) {
+             Alert.alert("Error", "Camera device is not initialized.");
+             return;
+        }
+
+        setIsCapturing(true);
+
+        try {
+            // 1. Take the photo using the camera reference
+            const photo = await cameraRef.current.takePhoto({
+                flash: 'off',
+                enableShutterSound: true,
+            });
+
+            const assetUri = `file://${photo.path}`;
+
+            // 2. Save the temporary file to the device's Camera Roll/Gallery permanently
+            const savedAsset = await CameraRoll.save(assetUri, {
+                type: 'photo',
+                album: 'PokeExplorer Captures',
+            });
+
+            const finalUri = savedAsset.uri;
+
+            // 3. Prepare data for app's internal gallery (AsyncStorage)
+            const captureData = {
+                id: Date.now().toString(),
+                uri: finalUri,
+                pokemonName: currentPokemonName,
+                pokemonSprite: currentPokemonSprite,
+                timestamp: new Date().toISOString(),
+            };
+
+            // 4. Load existing captures and prepend the new one
+            const existingCapturesJSON = await AsyncStorage.getItem(CAPTURES_KEY);
+            const existingCaptures = existingCapturesJSON ? JSON.parse(existingCapturesJSON) : [];
+
+            const newCaptures = [captureData, ...existingCaptures];
+            await AsyncStorage.setItem(CAPTURES_KEY, JSON.stringify(newCaptures));
+
+            Alert.alert(
+                "Capture Successful!",
+                `${currentPokemonName} saved to your Gallery!`
+            );
+
+        } catch (error) {
+            console.error('Photo Capture Error:', error);
+            Alert.alert("Capture Failed", `Could not save photo: ${error.message}`);
+        } finally {
+            setIsCapturing(false);
+        }
     };
+    // --- END handleCapture ---
+
 
     const handleGallery = () => {
-        launchImageLibrary({ mediaType: 'photo' }, (response) => {
-            if (response.didCancel) return;
-            Alert.alert("Gallery", "Image selected from gallery.");
-        });
+        // Navigate to the Profile screen where the gallery is located
+        navigation.navigate('Profile');
     };
+
+    // --- END ACTION HANDLERS ---
 
   return (
     <ImageBackground
@@ -142,8 +206,10 @@ const ARScreen = () => {
       {/* 🚨 AR CAMERA AND OVERLAY CONTAINER 🚨 */}
       <View style={styles.cameraContainer}>
         {/* 1. CAMERA FEED: The base layer */}
-        {hasPermission && cameraDevice ? (
+        {/* CRITICAL FIX: Explicitly check if cameraDevice is available before rendering Camera */}
+        {hasPermission && cameraDevice != null ? (
           <Camera
+            ref={cameraRef}
             style={StyleSheet.absoluteFill}
             device={cameraDevice}
             isActive={true}
@@ -156,6 +222,9 @@ const ARScreen = () => {
                 <Text style={styles.loadingText}>
                     {hasPermission === false ? "Camera Permission Denied" : "Loading AR Camera..."}
                 </Text>
+                {!cameraDevice && hasPermission && (
+                    <Text style={styles.loadingText}>Searching for camera device...</Text>
+                )}
             </View>
         )}
 
@@ -183,22 +252,21 @@ const ARScreen = () => {
 
       <View style={styles.container}>
         <View style={styles.row}>
-            {/* FIX 1: Apply button styling to TouchableOpacity */}
+            {/* Capture Button */}
             <TouchableOpacity
                 onPress={handleCapture}
-                disabled={!hasPermission || !isPokemonVisible}
-                style={[styles.buttonContainer, (!hasPermission || !isPokemonVisible) && styles.disabledBtn]} // <-- Apply button container styles here
+                // Disable if no permission, pokemon not visible, capturing, OR camera not ready
+                disabled={!hasPermission || !isPokemonVisible || isCapturing || cameraDevice == null}
+                style={[styles.buttonContainer, (!hasPermission || !isPokemonVisible || isCapturing || cameraDevice == null) && styles.disabledBtn]}
             >
-                {/* Apply text styling to Text component */}
-                <Text style={styles.buttonText}>Capture</Text>
+                <Text style={styles.buttonText}>{isCapturing ? 'Saving...' : 'Capture'}</Text>
             </TouchableOpacity>
 
-            {/* FIX 2: Apply button styling to TouchableOpacity */}
+            {/* Gallery Button */}
             <TouchableOpacity
                 onPress={handleGallery}
-                style={styles.buttonContainer} // <-- Apply button container styles here
+                style={styles.buttonContainer}
             >
-                {/* Apply text styling to Text component */}
                 <Text style={styles.buttonText}>Gallery</Text>
             </TouchableOpacity>
         </View>
@@ -207,7 +275,7 @@ const ARScreen = () => {
             <Text style={styles.title}>AR CAMERA INFORMATION</Text>
             <Text style={styles.status}>[ ] Camera Permissions: ({cameraPermissionStatus})</Text>
             <Text style={styles.status}>[ ] Sprite Overlay: {isPokemonVisible ? `${currentPokemonName} (2D)` : 'None'}</Text>
-            <Text style={styles.status}>[ ] Gyro Detection: (disabled - *future feature*)</Text>
+            <Text style={styles.status}>[ ] Capture Status: {isCapturing ? 'Saving...' : 'Ready'}</Text>
         </View>
 
        <BottomNav />
@@ -216,7 +284,7 @@ const ARScreen = () => {
   );
 };
 
-// --- UPDATED STYLES (Button fix applied) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -260,8 +328,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 10,
   },
-
-  // CENTERING FIX
   pokemonContainer: {
     position: 'absolute',
     top: 0,
@@ -272,7 +338,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-
   pokemonSprite: {
     width: 250,
     height: 250,
@@ -293,28 +358,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 20,
   },
-
-  // 💡 NEW STYLE: FOR THE <TouchableOpacity> CONTAINER
   buttonContainer: {
     backgroundColor: '#3b4cca',
     paddingHorizontal: 35,
     borderRadius: 5,
     elevation: 6,
     padding: 20,
-    flex: 1, // Ensures buttons share space in the row
+    flex: 1,
   },
-
-  // 💡 NEW STYLE: FOR THE <Text> ELEMENT
   buttonText: {
-    color: '#fff', // Text color
+    color: '#fff',
     fontSize: 30,
-    fontFamily: 'BrickSans-Bold',
     letterSpacing: 1.2,
     textAlign: 'center',
   },
-
-  // Removed old 'btn' style as its properties were split
-
   disabledBtn: {
     opacity: 0.5,
   },
@@ -327,7 +384,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   title: {
-     fontFamily: 'BrickSans-Bold',
     color: '#532221',
     fontSize: 30,
     letterSpacing: 1.2,
