@@ -19,7 +19,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 
 // 🚨 FIREBASE IMPORTS 🚨
-import { firestore, storage } from '../config/firebaseConfig';
+import { firestore, storage, FieldValue } from '../config/firebaseConfig';
 
 // Assuming these components exist
 import BottomNav from '../components/BottomNav';
@@ -265,7 +265,7 @@ const GlobalScreen = () => {
       // 4. Create the post data
       const newDiscoveryData = {
         userName: 'You',
-        timestamp: firestoreInstance.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         content: newPost.trim(),
         likesCount: 0,
         comments: [],

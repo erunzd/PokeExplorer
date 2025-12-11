@@ -3,6 +3,7 @@
 import firebase from '@react-native-firebase/app';
 import '@react-native-firebase/firestore';
 import '@react-native-firebase/storage'; // Added for completeness, matching GlobalScreen.js usage
+import { FieldValue } from '@react-native-firebase/firestore';
 
 // --- NOTE: REPLACE WITH YOUR ACTUAL FIREBASE CONFIG ---
 const firebaseConfig = {
@@ -26,5 +27,6 @@ if (!firebase.apps.length) {
 // Calling .firestore() and .storage() returns the initialized service functions.
 export const firestore = firebase.firestore; // NOTE: @react-native-firebase often exports the service function directly
 export const storage = firebase.storage;
+export { FieldValue };
 
 export default firebase;
