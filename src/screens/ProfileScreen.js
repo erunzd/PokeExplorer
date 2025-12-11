@@ -19,7 +19,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import BottomNav from '../components/BottomNav';
 import ProfileHeader from '../components/ProfileHeader';
 
-// Mock gallery images
+// Mock data
 const mockGalleryImages = [
   { id: '1', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png' },
   { id: '2', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png' },
@@ -31,7 +31,6 @@ const mockGalleryImages = [
   { id: '8', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/9.png' },
 ];
 
-// Sample badges with titles
 const sampleBadges = [
   { id: '1', title: 'Kanto', obtained: true },
   { id: '2', title: 'Johto', obtained: true },
@@ -60,18 +59,18 @@ const ProfileScreen = ({ navigation }) => {
   const loadUserData = async () => {
     try {
       const email = await AsyncStorage.getItem('@user_email');
-      const savedImage = await AsyncStorage.getItem('@profile_image');
-
-      if (email) {
-        setUserEmail(email);
-        // Extract username from email (remove @example.com part)
-        const username = email.split('@')[0];
-        setUserName(username.toUpperCase());
+      if (!email) {
+        navigation.replace('Login');
+        return;
       }
 
-      if (savedImage) {
-        setProfileImage(savedImage);
-      }
+      setUserEmail(email);
+      setUserName(email.split('@')[0].toUpperCase());
+
+      // Load user-specific image
+      const key = `@profile_image_${email.trim()}`;
+      const savedImage = await AsyncStorage.getItem(key);
+      if (savedImage) setProfileImage(savedImage);
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -83,9 +82,8 @@ const ProfileScreen = ({ navigation }) => {
     try {
       const pokedexData = await AsyncStorage.getItem('@pokedex_list');
       if (pokedexData) {
-        const parsedData = JSON.parse(pokedexData);
-        const count = parsedData.list ? parsedData.list.length : 0;
-        setPokemonCount(count);
+        const parsed = JSON.parse(pokedexData);
+        setPokemonCount(parsed.list?.length || 0);
       }
     } catch (error) {
       console.error('Error loading Pokémon count:', error);
@@ -94,60 +92,42 @@ const ProfileScreen = ({ navigation }) => {
 
   const handleImagePicker = () => {
     const options = {
-      title: 'Select Profile Picture',
-      storageOptions: {
-        skipBackup: true,
-        path: 'images',
-      },
+      mediaType: 'photo',
+      cropping: true,
+      width: 600,
+      height: 600,
+      cropperCircleOverlay: false,
+      freeStyleCropEnabled: true,
+      includeBase64: false,
     };
 
     launchImageLibrary(options, async (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled image picker');
-      } else if (response.error) {
-        console.log('ImagePicker Error: ', response.error);
-        Alert.alert('Error', 'Failed to select image');
-      } else if (response.assets && response.assets[0]) {
-        const uri = response.assets[0].uri;
-        setProfileImage(uri);
-        await AsyncStorage.setItem('@profile_image', uri);
+      if (response.didCancel || response.errorCode) return;
+
+      const uri = response.assets?.[0]?.uri;
+      if (!uri) return;
+
+      setProfileImage(uri);
+
+      try {
+        const email = await AsyncStorage.getItem('@user_email');
+        if (email) {
+          await AsyncStorage.setItem(`@profile_image_${email.trim()}`, uri);
+        }
+      } catch (e) {
+        console.error(e);
       }
     });
   };
 
-  const handleLogout = () => {
-    setLogoutModalVisible(true);
-  };
-
   const confirmLogout = async () => {
     try {
-      await AsyncStorage.multiRemove(['@user_email', '@profile_image']);
+      await AsyncStorage.removeItem('@user_email'); // Only remove login, keep photos!
       navigation.replace('Login');
     } catch (error) {
-      console.error('Error during logout:', error);
       Alert.alert('Error', 'Failed to logout');
     }
   };
-
-  const renderGalleryItem = ({ item }) => (
-    <View style={styles.galleryItem}>
-      <Image source={{ uri: item.uri }} style={styles.galleryImage} />
-    </View>
-  );
-
-  const renderBadgeItem = ({ item }) => (
-    <View style={[
-      styles.badgeItem,
-      { backgroundColor: item.obtained ? '#FFCB05' : '#E0E0E0' }
-    ]}>
-      <Text style={[
-        styles.badgeTitle,
-        { color: item.obtained ? '#2C72B8' : '#666' }
-      ]}>
-        {item.title}
-      </Text>
-    </View>
-  );
 
   if (loading) {
     return (
@@ -171,10 +151,11 @@ const ProfileScreen = ({ navigation }) => {
         {/* Trainer Info Card */}
         <View style={styles.trainerCardContainer}>
           <View style={styles.profileSection}>
-            {/* Profile Image - Rectangular, taking 1/3 of width with NO border/space */}
+            {/* FULL HEIGHT PROFILE IMAGE (33% width, no cut-off) */}
             <TouchableOpacity
               style={styles.profileImageContainer}
               onPress={handleImagePicker}
+              activeOpacity={0.9}
             >
               {profileImage ? (
                 <Image source={{ uri: profileImage }} style={styles.profileImage} />
@@ -192,7 +173,7 @@ const ProfileScreen = ({ navigation }) => {
 
             {/* User Info Section */}
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{userName || '23101504'}</Text>
+              <Text style={styles.userName}>{userName || 'TRAINER'}</Text>
 
               {/* Stats */}
               <View style={styles.statsContainer}>
@@ -207,12 +188,28 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              {/* Badges Section inside same container */}
+              {/* Badges */}
               <View style={styles.badgesSection}>
                 <Text style={styles.badgesTitle}>Badges</Text>
                 <FlatList
                   data={sampleBadges}
-                  renderItem={renderBadgeItem}
+                  renderItem={({ item }) => (
+                    <View
+                      style={[
+                        styles.badgeItem,
+                        { backgroundColor: item.obtained ? '#FFCB05' : '#E0E0E0' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.badgeTitle,
+                          { color: item.obtained ? '#2C72B8' : '#666' },
+                        ]}
+                      >
+                        {item.title}
+                      </Text>
+                    </View>
+                  )}
                   keyExtractor={(item) => item.id}
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -223,7 +220,7 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Gallery Section */}
+        {/* Gallery */}
         <View style={styles.sectionContainer}>
           <View style={styles.galleryHeader}>
             <Text style={styles.sectionTitle}>Gallery</Text>
@@ -231,7 +228,11 @@ const ProfileScreen = ({ navigation }) => {
           </View>
           <FlatList
             data={mockGalleryImages}
-            renderItem={renderGalleryItem}
+            renderItem={({ item }) => (
+              <View style={styles.galleryItem}>
+                <Image source={{ uri: item.uri }} style={styles.galleryImage} />
+              </View>
+            )}
             keyExtractor={(item) => item.id}
             numColumns={4}
             scrollEnabled={false}
@@ -240,15 +241,16 @@ const ProfileScreen = ({ navigation }) => {
         </View>
 
         {/* Logout Button */}
+        */}
         <TouchableOpacity
           style={styles.logoutButton}
-          onPress={handleLogout}
+          onPress={() => setLogoutModalVisible(true)}
         >
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -258,9 +260,7 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Confirm Logout</Text>
-            <Text style={styles.modalMessage}>
-              Are you sure you want to logout?
-            </Text>
+            <Text style={styles.modalMessage}>Are you sure you want to logout?</Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -284,7 +284,6 @@ const ProfileScreen = ({ navigation }) => {
   );
 };
 
-// --- STYLES ---
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -292,10 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
   },
-  background: {
-    flex: 1,
-    width: '100%',
-  },
+  background: { flex: 1 },
   backdropOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.25)',
@@ -307,42 +303,41 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   trainerCardContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255,255,255,0.85)',
     borderRadius: 15,
-    padding: 0, // Changed from 20 to 0 to remove outer padding
+    padding: 0,
     marginBottom: 20,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    overflow: 'hidden', // Added to contain the image within rounded corners
+    overflow: 'hidden',
   },
   profileSection: {
     flexDirection: 'row',
   },
   profileImageContainer: {
-      width: '33%', // Takes 1/3 of the container
-      position: 'relative',
-      marginTop: -20, // Adjust for container padding
-      marginBottom: -20, // Adjust for container padding
-      marginLeft: -20, // Adjust for container padding
-      borderTopLeftRadius: 15, // Match card border radius
-      borderBottomLeftRadius: 15, // Match card border radius
-      overflow: 'hidden', // Keep image within rounded corners
-      height: 180, // Add a fixed height to match the card
-    },
-    profileImage: {
-      width: '100%',
-      height: '100%', // Fixed: Changed from '100' to '100%'
-      borderWidth: 0, // No border
-    },
-    placeholderImage: {
-      backgroundColor: '#DC0A2D',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100%', // Ensure it fills the container
-    },
+    width: '33%',
+    position: 'relative',
+    marginTop: -20,
+    marginBottom: -20,
+    marginLeft: -20,
+    borderTopLeftRadius: 15,
+    borderBottomLeftRadius: 15,
+    overflow: 'hidden',
+    height: 180,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  placeholderImage: {
+    backgroundColor: '#DC0A2D',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   placeholderText: {
     color: 'white',
     fontSize: 48,
@@ -353,8 +348,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     paddingVertical: 5,
+    pointerEvents: 'none',
   },
   imageOverlayText: {
     color: 'white',
@@ -364,8 +360,7 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
-    justifyContent: 'flex-start',
-    padding: 20, // Added padding here instead of outer container
+    padding: 20,
   },
   userName: {
     fontSize: 32,
@@ -376,94 +371,33 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(220, 10, 45, 0.1)',
+    backgroundColor: 'rgba(220,10,45,0.1)',
     borderRadius: 10,
     padding: 15,
     marginBottom: 20,
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#DC0A2D',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: 'rgba(220, 10, 45, 0.3)',
-  },
-  badgesSection: {
-    marginTop: 10,
-  },
-  badgesTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  badgesList: {
-    paddingVertical: 5,
-  },
-  badgeItem: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-    marginBottom: 10,
-  },
-  badgeTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: 28, fontWeight: 'bold', color: '#DC0A2D' },
+  statLabel: { fontSize: 14, color: '#666', marginTop: 5 },
+  statDivider: { width: 1, backgroundColor: 'rgba(220,10,45,0.3)' },
+  badgesSection: { marginTop: 10 },
+  badgesTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  badgesList: { paddingVertical: 5 },
+  badgeItem: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10, marginBottom: 10 },
+  badgeTitle: { fontSize: 14, fontWeight: 'bold' },
   sectionContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255,255,255,0.85)',
     borderRadius: 15,
     padding: 20,
     marginBottom: 20,
     elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  galleryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  galleryCount: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
-  },
-  galleryGrid: {
-    paddingHorizontal: 5,
-  },
-  galleryItem: {
-    width: '23%',
-    marginHorizontal: '1%',
-    marginBottom: 10,
-  },
-  galleryImage: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 10,
-    backgroundColor: '#f0f0f0',
-  },
+  sectionTitle: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+  galleryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  galleryCount: { fontSize: 16, color: '#666', fontWeight: '500' },
+  galleryGrid: { paddingHorizontal: 5 },
+  galleryItem: { width: '23%', marginHorizontal: '1%', marginBottom: 10 },
+  galleryImage: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#f0f0f0' },
   logoutButton: {
     backgroundColor: '#DC0A2D',
     borderRadius: 10,
@@ -471,71 +405,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
     elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
   },
-  logoutButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 25,
-    width: '80%',
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 25,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  cancelButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  cancelButtonText: {
-    color: '#333',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  confirmButton: {
-    backgroundColor: '#DC0A2D',
-  },
-  confirmButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  logoutButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContainer: { backgroundColor: 'white', borderRadius: 15, padding: 25, width: '80%', elevation: 10 },
+  modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#333', marginBottom: 10, textAlign: 'center' },
+  modalMessage: { fontSize: 16, color: '#666', marginBottom: 25, textAlign: 'center', lineHeight: 22 },
+  modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+  modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 5 },
+  cancelButton: { backgroundColor: '#f0f0f0' },
+  confirmButton: { backgroundColor: '#DC0A2D' },
+  cancelButtonText: { color: '#333', fontSize: 16, fontWeight: '600' },
+  confirmButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
 });
 
 export default ProfileScreen;

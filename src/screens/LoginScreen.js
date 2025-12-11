@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, Dimensions, StyleSheet, Image, Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
 import auth from '@react-native-firebase/auth';
-
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Add this at the top
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,13 +13,27 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please enter both email and password');
       return;
     }
+
     try {
-      await auth().signInWithEmailAndPassword(email, password);
+      const userCredential = await auth().signInWithEmailAndPassword(email.trim(), password);
+
+      // Save email to AsyncStorage after successful login
+      await AsyncStorage.setItem('@user_email', email.trim());
+
       Alert.alert('Success', 'Welcome back, Trainer!');
-      // Navigate to your main Home/Pokedex screen here
-       navigation.replace('Pokedex');
+      navigation.replace('Pokedex'); // or wherever your main tab/screen is
     } catch (error) {
-      Alert.alert('Login Failed', error.message);
+      let errorMessage = 'Login failed. Please try again.';
+
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        errorMessage = 'Invalid email or password.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many attempts. Try again later.';
+      }
+
+      Alert.alert('Login Failed', errorMessage);
     }
   };
 
