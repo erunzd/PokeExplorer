@@ -186,11 +186,6 @@ const ARScreen = () => {
             <Text style={styles.status}>[ ] Sprite Overlay: {isPokemonVisible ? `${pokemonData.name} (2D)` : 'None'}</Text>
             <Text style={styles.status}>[ ] Gyro Detection: (disabled - *future feature*)</Text>
         </View>
-
-        <TouchableOpacity onPress={handleVoiceSearch}>
-            <Text style={styles.vsbtn}>Voice Search</Text>
-        </TouchableOpacity>
-        <Text style={styles.vstxt}>Try saying: Pikachu, Bulbasaur, Snorlax</Text>
         <BottomNav />
       </View>
     </ImageBackground>
