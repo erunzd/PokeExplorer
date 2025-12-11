@@ -17,6 +17,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
+import auth from '@react-native-firebase/auth';
 
 // 🚨 FIREBASE IMPORTS 🚨
 import { firestore, storage, FieldValue } from '../config/firebaseConfig';
@@ -262,16 +263,22 @@ const GlobalScreen = () => {
         console.log("Download URL received:", downloadUrl);
       }
 
+      const currentUser = auth().currentUser;
+      const username = currentUser.email.split('@')[0];
+
       // 4. Create the post data
       const newDiscoveryData = {
-        userName: 'You',
+        userId: currentUser.uid,
+        userName: username,
+        userEmail: currentUser.email,
         timestamp: FieldValue.serverTimestamp(),
         content: newPost.trim(),
         likesCount: 0,
         comments: [],
         photo: downloadUrl,
-        profilePhoto: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/6.png',
+        profilePhoto: `https://ui-avatars.com/api/?name=${username}`,
       };
+
 
       // 5. Post document to Firestore
       await firestoreInstance
@@ -471,7 +478,7 @@ const styles = StyleSheet.create({
   imageSelectBtnText: {
     color: '#532221',
     // fontFamily: 'BrickSans-Bold',
-    fontSize: 20,
+    fontSize: 14,
   },
   imageSelectBtnTextSecondary: {
     color: '#fff',
@@ -491,7 +498,7 @@ const styles = StyleSheet.create({
   postBtnText: {
     color: '#fff',
     // fontFamily: 'BrickSans-Bold',
-    fontSize: 20,
+    fontSize: 14,
     letterSpacing: 1.2,
   },
   card: {
