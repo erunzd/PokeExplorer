@@ -42,7 +42,12 @@ const HuntScreen = () => {
 
       const typeNames = data.types.map(t => t.type.name.charAt(0).toUpperCase() + t.type.name.slice(1)).join('/');
       // Use the official artwork as it's often more reliable and higher quality
-      const imageUrl = data.sprites.other['official-artwork'].front_default || data.sprites.front_default || 'https://via.placeholder.com/50';
+      const imageUrl =
+        data.sprites.front_default ||
+        data.sprites.other.home.front_default ||
+        data.sprites.other['official-artwork'].front_default ||
+        'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/0.png';
+
 
       return {
         id: data.id,
@@ -204,23 +209,43 @@ const HuntScreen = () => {
                    <Text style={{ color: '#fff', marginTop: 10 }}>Acquiring GPS Signal...</Text>
                 </View>
              ) : (
-                <MapView
-                  provider={PROVIDER_GOOGLE}
-                  style={styles.map}
-                  region={location}
-                  showsUserLocation={true}
-                  followsUserLocation={true}
-                  initialRegion={location}
+
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={styles.map}
+              region={location}
+              showsUserLocation={true}
+              followsUserLocation={true}
+              initialRegion={location}
+            >
+              {nearbyPokemon.map((poke) => (
+                <Marker
+                  key={poke.uniqueKey}
+                  coordinate={{
+                    latitude: poke.latitude,
+                    longitude: poke.longitude
+                  }}
+                  title={poke.name}
+                  description={`${poke.distance}m away`}
+                  anchor={{ x: 0.5, y: 0.5 }}
                 >
-                  {nearbyPokemon.map((poke) => (
-                    <Marker
-                      key={poke.uniqueKey}
-                      coordinate={{ latitude: poke.latitude, longitude: poke.longitude }}
-                      title={poke.name}
-                      description={`${poke.distance}m away`}
-                    />
-                  ))}
-                </MapView>
+                  <Image
+                    source={{
+                      uri: poke.imageUrl   // make sure you added this in your fetch
+                    }}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 100,
+                      borderWidth: 2,
+                      borderColor: '#fff'
+                    }}
+                    resizeMode="contain"
+                  />
+                </Marker>
+              ))}
+            </MapView>
+
              )}
              <View style={styles.mapLabelContainer}>
                 <Text style={styles.mapLabelText}>Live Map Display</Text>
@@ -270,7 +295,7 @@ const styles = StyleSheet.create({
   mapContainer: {
     height: 300,
     width: '100%',
-    marginTop: 0,
+    marginTop: 50,
     borderBottomWidth: 3,
     borderColor: '#333'
   },
@@ -311,7 +336,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 10
+    textShadowRadius: 10,
+    fontFamily: 'BrickSans-Bold',
   },
   pokemonImage: {
      width: 60,
@@ -359,7 +385,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 18,
     letterSpacing: 1.2,
-    marginBottom: 80,
+    marginBottom: 100,
     fontWeight: 'bold'
   },
 });
