@@ -127,7 +127,7 @@ const HuntScreen = () => {
               setLoadingLocation(false);
               setLoadingEncounters(false);
           },
-          { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
+          { enableHighAccuracy: true, timeout: 30000, maximumAge: 5000 }
       );
   };
 
