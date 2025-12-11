@@ -19,7 +19,6 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import BottomNav from '../components/BottomNav';
 import ProfileHeader from '../components/ProfileHeader';
 
-// Mock data
 const mockGalleryImages = [
   { id: '1', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png' },
   { id: '2', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png' },
@@ -67,7 +66,6 @@ const ProfileScreen = ({ navigation }) => {
       setUserEmail(email);
       setUserName(email.split('@')[0].toUpperCase());
 
-      // Load user-specific image
       const key = `@profile_image_${email.trim()}`;
       const savedImage = await AsyncStorage.getItem(key);
       if (savedImage) setProfileImage(savedImage);
@@ -95,10 +93,12 @@ const ProfileScreen = ({ navigation }) => {
       mediaType: 'photo',
       cropping: true,
       width: 600,
-      height: 600,
+      height: 800,                    // Tall crop → perfect for trainer card
       cropperCircleOverlay: false,
       freeStyleCropEnabled: true,
       includeBase64: false,
+      cropperChooseText: 'Done',
+      cropperCancelText: 'Cancel',
     };
 
     launchImageLibrary(options, async (response) => {
@@ -122,7 +122,7 @@ const ProfileScreen = ({ navigation }) => {
 
   const confirmLogout = async () => {
     try {
-      await AsyncStorage.removeItem('@user_email'); // Only remove login, keep photos!
+      await AsyncStorage.removeItem('@user_email');
       navigation.replace('Login');
     } catch (error) {
       Alert.alert('Error', 'Failed to logout');
@@ -148,17 +148,20 @@ const ProfileScreen = ({ navigation }) => {
       <ProfileHeader />
 
       <ScrollView style={styles.container}>
-        {/* Trainer Info Card */}
         <View style={styles.trainerCardContainer}>
           <View style={styles.profileSection}>
-            {/* FULL HEIGHT PROFILE IMAGE (33% width, no cut-off) */}
+            {/* FULL HEIGHT + FULL WIDTH IMAGE */}
             <TouchableOpacity
               style={styles.profileImageContainer}
               onPress={handleImagePicker}
               activeOpacity={0.9}
             >
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={styles.profileImage} />
+                <Image
+                  source={{ uri: profileImage }}
+                  style={styles.profileImage}
+                  resizeMode="cover"
+                />
               ) : (
                 <View style={[styles.profileImage, styles.placeholderImage]}>
                   <Text style={styles.placeholderText}>
@@ -171,11 +174,10 @@ const ProfileScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            {/* User Info Section */}
+            {/* User Info */}
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{userName || 'TRAINER'}</Text>
 
-              {/* Stats */}
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>69</Text>
@@ -184,15 +186,17 @@ const ProfileScreen = ({ navigation }) => {
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{pokemonCount}</Text>
-                  <Text style={styles.statLabel}>Box</Text>
+                  <Text style={styles.statLabel}>Dex</Text>
                 </View>
               </View>
 
-              {/* Badges */}
               <View style={styles.badgesSection}>
                 <Text style={styles.badgesTitle}>Badges</Text>
                 <FlatList
                   data={sampleBadges}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(item) => item.id}
                   renderItem={({ item }) => (
                     <View
                       style={[
@@ -210,9 +214,6 @@ const ProfileScreen = ({ navigation }) => {
                       </Text>
                     </View>
                   )}
-                  keyExtractor={(item) => item.id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.badgesList}
                 />
               </View>
@@ -228,20 +229,18 @@ const ProfileScreen = ({ navigation }) => {
           </View>
           <FlatList
             data={mockGalleryImages}
+            numColumns={4}
+            scrollEnabled={false}
+            keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <View style={styles.galleryItem}>
                 <Image source={{ uri: item.uri }} style={styles.galleryImage} />
               </View>
             )}
-            keyExtractor={(item) => item.id}
-            numColumns={4}
-            scrollEnabled={false}
             contentContainerStyle={styles.galleryGrid}
           />
         </View>
 
-        {/* Logout Button */}
-        */}
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={() => setLogoutModalVisible(true)}
@@ -250,10 +249,9 @@ const ProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Logout Modal */}
       <Modal
         animationType="fade"
-        transparent={true}
+        transparent
         visible={logoutModalVisible}
         onRequestClose={() => setLogoutModalVisible(false)}
       >
@@ -318,20 +316,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   profileImageContainer: {
-    width: '33%',
-    position: 'relative',
+    width: '40%',
+    height: 350, // Increased height so image fills full card
+    marginLeft: -20,
     marginTop: -20,
     marginBottom: -20,
-    marginLeft: -20,
     borderTopLeftRadius: 15,
     borderBottomLeftRadius: 15,
     overflow: 'hidden',
-    height: 180,
   },
   profileImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'cover', // This makes it fill completely
   },
   placeholderImage: {
     backgroundColor: '#DC0A2D',
@@ -349,7 +346,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingVertical: 5,
+    paddingVertical: 6,
     pointerEvents: 'none',
   },
   imageOverlayText: {
@@ -361,13 +358,14 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
     padding: 20,
+    justifyContent: 'flex-start',
   },
   userName: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
     textAlign: 'center',
+    marginBottom: 15,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -383,7 +381,7 @@ const styles = StyleSheet.create({
   badgesSection: { marginTop: 10 },
   badgesTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 15 },
   badgesList: { paddingVertical: 5 },
-  badgeItem: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10, marginBottom: 10 },
+  badgeItem: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10 },
   badgeTitle: { fontSize: 14, fontWeight: 'bold' },
   sectionContainer: {
     backgroundColor: 'rgba(255,255,255,0.85)',
