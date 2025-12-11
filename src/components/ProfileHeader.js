@@ -41,8 +41,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',    
   },
   light: {
-    width: 30,
-    height: 30,
+    width: 15,
+    height: 15,
     borderRadius: 100,
     marginRight: 6,
     borderWidth: 2,

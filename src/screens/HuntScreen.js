@@ -384,8 +384,8 @@ const styles = StyleSheet.create({
     elevation: 6,
     padding: 12,
     fontSize: 18,
+    bottom: 125,
     letterSpacing: 1.2,
-    marginBottom: 100,
     fontWeight: 'bold'
   },
 });

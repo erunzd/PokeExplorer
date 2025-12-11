@@ -124,8 +124,8 @@ const styles = StyleSheet.create({
   },
   // The Big Blue Circle
   blueLensOuter: {
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     borderRadius: 100,
     backgroundColor: '#4967a4ff', // Dark Blue border
     borderWidth: 4,
@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   blueLensInner: {
-    width: 40,
-    height: 40,
+    width: 50,
+    height: 50,
     borderRadius: 100,
     backgroundColor: '#28AAFD', // Light Blue
   },
