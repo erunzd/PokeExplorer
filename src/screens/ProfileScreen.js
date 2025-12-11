@@ -19,7 +19,6 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import BottomNav from '../components/BottomNav';
 import ProfileHeader from '../components/ProfileHeader';
 
-// 🚨 NEW IMPORT: Utility for XP, Level, and Badge logic 🚨
 import {
   loadUserProgress,
   DEFAULT_PROGRESS,
@@ -28,7 +27,6 @@ import {
   BADGES
 } from '../utils/GamificationService';
 
-// CONSTANT: Key for storing capture data (Must match ARScreen.js)
 const CAPTURES_KEY = '@pokemon_captures_gallery';
 
 const ProfileScreen = ({ navigation }) => {
@@ -39,35 +37,25 @@ const ProfileScreen = ({ navigation }) => {
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [pokemonCount, setPokemonCount] = useState(0);
 
-  // 🚨 NEW STATE FOR GAMIFICATION 🚨
   const [userXP, setUserXP] = useState(DEFAULT_PROGRESS.xp);
   const [userLevel, setUserLevel] = useState(DEFAULT_PROGRESS.level);
   const [userBadges, setUserBadges] = useState(DEFAULT_PROGRESS.badges);
   const [xpToNextLevel, setXPToNextLevel] = useState(0);
 
-  // STATE: To hold the actual captured photo data
   const [capturedPhotos, setCapturedPhotos] = useState([]);
 
-  // --- Load Gallery Data ---
   const loadCapturedPhotos = useCallback(async () => {
     try {
       const capturesJSON = await AsyncStorage.getItem(CAPTURES_KEY);
-      if (capturesJSON) {
-        const captures = JSON.parse(capturesJSON);
-        setCapturedPhotos(captures);
-      } else {
-        setCapturedPhotos([]);
-      }
+      setCapturedPhotos(capturesJSON ? JSON.parse(capturesJSON) : []);
     } catch (error) {
-      console.error('Error loading captured photos (Gallery):', error);
+      console.error('Error loading captured photos:', error);
     }
   }, []);
 
-  // --- Load Gamification Data ---
   const loadGamificationData = useCallback(async (email) => {
     try {
       const progress = await loadUserProgress(email);
-
       const currentLevel = getLevelFromXP(progress.xp);
       const xpRequired = getXPForNextLevel(currentLevel);
 
@@ -75,7 +63,6 @@ const ProfileScreen = ({ navigation }) => {
       setUserLevel(currentLevel);
       setUserBadges(progress.badges);
       setXPToNextLevel(xpRequired);
-
     } catch (error) {
       console.error('Error loading gamification data:', error);
     }
@@ -88,30 +75,23 @@ const ProfileScreen = ({ navigation }) => {
 
     const unsubscribe = navigation.addListener('focus', () => {
       loadCapturedPhotos();
-      if (userEmail) {
-        loadGamificationData(userEmail);
-      }
+      if (userEmail) loadGamificationData(userEmail);
     });
-
     return unsubscribe;
   }, [navigation, loadCapturedPhotos, userEmail, loadGamificationData]);
 
   const loadUserData = async () => {
     try {
       const email = await AsyncStorage.getItem('@user_email');
-
       if (email) {
         setUserEmail(email);
-        const username = email.split('@')[0];
-        setUserName(username.toUpperCase());
-
+        setUserName(email.split('@')[0].toUpperCase());
         await loadGamificationData(email);
 
         const profileImageKey = `@profile_image_${email.trim()}`;
         const savedImageUri = await AsyncStorage.getItem(profileImageKey);
         if (savedImageUri) setProfileImage(savedImageUri);
       }
-
     } catch (error) {
       console.error('Error loading user data:', error);
     } finally {
@@ -133,13 +113,11 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleImagePicker = () => {
-    const options = { mediaType: 'photo', includeBase64: false };
-    launchImageLibrary(options, async (response) => {
+    launchImageLibrary({ mediaType: 'photo', includeBase64: false }, async (response) => {
       if (response.assets && response.assets[0]) {
         const uri = response.assets[0].uri;
         setProfileImage(uri);
-        const key = `@profile_image_${userEmail.trim()}`;
-        await AsyncStorage.setItem(key, uri);
+        await AsyncStorage.setItem(`@profile_image_${userEmail.trim()}`, uri);
       }
     });
   };
@@ -149,7 +127,7 @@ const ProfileScreen = ({ navigation }) => {
       await AsyncStorage.removeItem('@user_email');
       await AsyncStorage.removeItem(`@user_progress_${userEmail}`);
       navigation.replace('Login');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to logout');
     }
   };
@@ -172,14 +150,12 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#DC0A2D" />
-        <Text style={{ marginTop: 10 }}>Loading Profile...</Text>
-      </View>
-    );
-  }
+  if (loading) return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#DC0A2D" />
+      <Text style={{ marginTop: 10 }}>Loading Profile...</Text>
+    </View>
+  );
 
   const xpCurrentLevelStart = getXPForNextLevel(userLevel - 1);
   const xpProgress = userXP - xpCurrentLevelStart;
@@ -187,32 +163,22 @@ const ProfileScreen = ({ navigation }) => {
   const xpPercentage = xpRange > 0 ? (xpProgress / xpRange) * 100 : 0;
 
   return (
-    <ImageBackground
-      source={require('../assets/test2.png')}
-      style={styles.background}
-      blurRadius={1}
-    >
+    <ImageBackground source={require('../assets/test2.png')} style={styles.background} blurRadius={1}>
       <View style={styles.backdropOverlay} />
       <ProfileHeader />
 
       <ScrollView style={styles.container}>
         <View style={styles.trainerCardContainer}>
           <View style={styles.profileSection}>
-            <TouchableOpacity
-              style={styles.profileImageContainer}
-              onPress={handleImagePicker}
-              activeOpacity={0.9}
-            >
+            <TouchableOpacity style={styles.profileImageContainer} onPress={handleImagePicker} activeOpacity={0.9}>
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={styles.profileImage} resizeMode="cover" />
+                <Image source={{ uri: profileImage }} style={styles.profileImage} />
               ) : (
                 <View style={[styles.profileImage, styles.placeholderImage]}>
                   <Text style={styles.placeholderText}>{userName ? userName.charAt(0) : '?'}</Text>
                 </View>
               )}
-              <View style={styles.imageOverlay}>
-                <Text style={styles.imageOverlayText}>CHANGE</Text>
-              </View>
+              <View style={styles.imageOverlay}><Text style={styles.imageOverlayText}>CHANGE</Text></View>
             </TouchableOpacity>
 
             <View style={styles.userInfo}>
@@ -235,15 +201,9 @@ const ProfileScreen = ({ navigation }) => {
               </View>
 
               <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>---</Text>
-                  <Text style={styles.statLabel}>Daily</Text>
-                </View>
+                <View style={styles.statItem}><Text style={styles.statValue}>---</Text><Text style={styles.statLabel}>Daily</Text></View>
                 <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{pokemonCount}</Text>
-                  <Text style={styles.statLabel}>Dex</Text>
-                </View>
+                <View style={styles.statItem}><Text style={styles.statValue}>{pokemonCount}</Text><Text style={styles.statLabel}>Dex</Text></View>
               </View>
 
               <View style={styles.badgesSection}>
@@ -267,9 +227,7 @@ const ProfileScreen = ({ navigation }) => {
             <Text style={styles.galleryCount}>{capturedPhotos.length}</Text>
           </View>
           {capturedPhotos.length === 0 ? (
-            <Text style={styles.emptyGalleryText}>
-              You haven't captured any Pokémon photos yet! Go to AR Camera to catch one.
-            </Text>
+            <Text style={styles.emptyGalleryText}>You haven't captured any Pokémon photos yet! Go to AR Camera to catch one.</Text>
           ) : (
             <FlatList
               data={capturedPhotos}
@@ -278,40 +236,25 @@ const ProfileScreen = ({ navigation }) => {
               horizontal
               showsHorizontalScrollIndicator={true}
               contentContainerStyle={styles.galleryHorizontalList}
-              key="horizontal-gallery"
             />
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={() => setLogoutModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.logoutButton} onPress={() => setLogoutModalVisible(true)}>
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal
-        animationType="fade"
-        transparent
-        visible={logoutModalVisible}
-        onRequestClose={() => setLogoutModalVisible(false)}
-      >
+      <Modal animationType="fade" transparent visible={logoutModalVisible} onRequestClose={() => setLogoutModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Confirm Logout</Text>
             <Text style={styles.modalMessage}>Are you sure you want to logout?</Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setLogoutModalVisible(false)}
-              >
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setLogoutModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={confirmLogout}
-              >
+              <TouchableOpacity style={[styles.modalButton, styles.confirmButton]} onPress={confirmLogout}>
                 <Text style={styles.confirmButtonText}>Logout</Text>
               </TouchableOpacity>
             </View>
@@ -325,17 +268,15 @@ const ProfileScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  // General
   background: { flex: 1 },
   backdropOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 80 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
 
-  // Trainer card
-  trainerCardContainer: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 15, padding: 0, marginBottom: 20, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, overflow: 'hidden' },
+  trainerCardContainer: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 15, padding: 0, marginBottom: 20, elevation: 5 },
   profileSection: { flexDirection: 'row' },
   profileImageContainer: { width: '40%', height: 350, marginLeft: -20, marginTop: -20, marginBottom: -20, borderTopLeftRadius: 15, borderBottomLeftRadius: 15, overflow: 'hidden' },
-  profileImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  profileImage: { width: '100%', height: '100%' },
   placeholderImage: { backgroundColor: '#DC0A2D', justifyContent: 'center', alignItems: 'center' },
   placeholderText: { color: 'white', fontSize: 48, fontWeight: 'bold' },
   imageOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', paddingVertical: 6, pointerEvents: 'none' },
@@ -343,7 +284,6 @@ const styles = StyleSheet.create({
   userInfo: { flex: 1, padding: 20, justifyContent: 'flex-start' },
   userName: { fontSize: 32, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 15 },
 
-  // Gamification
   levelContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(220,10,45,0.1)', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 15, marginBottom: 20 },
   levelBox: { alignItems: 'center', marginRight: 15 },
   xpBarWrapper: { flex: 1, paddingRight: 10 },
@@ -364,8 +304,7 @@ const styles = StyleSheet.create({
   badgeItem: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10 },
   badgeTitle: { fontSize: 14, fontWeight: 'bold' },
 
-  // Gallery
-  sectionContainer: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 15, padding: 20, marginBottom: 20, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  sectionContainer: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 15, padding: 20, marginBottom: 20, elevation: 5 },
   sectionTitle: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 15 },
   galleryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   galleryCount: { fontSize: 16, color: '#666', fontWeight: '500' },
