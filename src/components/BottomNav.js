@@ -26,7 +26,7 @@ const BottomNav = () => {
               onPress={() => navigation.navigate(i.routeName)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.label, active ? styles.active : styles.inactive]}>{i.label}</Text>
+              <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.label, active ? styles.active : styles.inactive]}>{i.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -63,9 +63,11 @@ const styles = StyleSheet.create({
   item: {
     paddingHorizontal: 12,
     paddingVertical: 6,
+    flex: 1,
+    flexShrink: 1,
   },
   label: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: '600',
   },
   active: {
