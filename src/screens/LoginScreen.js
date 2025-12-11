@@ -124,8 +124,8 @@ const styles = StyleSheet.create({
   },
   // The Big Blue Circle
   blueLensOuter: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     borderRadius: 100,
     backgroundColor: '#4967a4ff', // Dark Blue border
     borderWidth: 4,
@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
     marginRight: 20,
   },
   blueLensInner: {
-    width: 60,
-    height: 60,
+    width: 40,
+    height: 40,
     borderRadius: 100,
     backgroundColor: '#28AAFD', // Light Blue
   },
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
 
   titleOutline: {
     position: 'absolute',
-    fontSize: 120,
+    fontSize: 70,
     fontWeight: 'normal',
     color: '#3B4CCA',
     letterSpacing: 1.5,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
 
   // Keep your original title but remove marginBottom because wrapper handles it
   title: {
-    fontSize: 120,
+    fontSize: 70,
     fontWeight: 'normal',
     color: '#FFDE00',
     fontFamily: 'BrickSans-Bold',
