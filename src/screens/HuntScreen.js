@@ -17,6 +17,7 @@ import {
 import Geolocation from '@react-native-community/geolocation';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import axios from 'axios';
+import { useNavigation } from '@react-navigation/native'; // 🚨 NEW: For navigating
 
 // --- COMPONENTS ---
 import BottomNav from '../components/BottomNav';
@@ -27,11 +28,14 @@ const POKEMON_COUNT = 1025;
 const POKEMON_TO_SPAWN = 3;
 
 const HuntScreen = () => {
+  // 🚨 NEW: Initialize navigation hook 🚨
+  const navigation = useNavigation();
+
   // 🚨 ALL HOOKS AT THE TOP 🚨
   const [location, setLocation] = useState(null);
   const [nearbyPokemon, setNearbyPokemon] = useState([]);
   const [loadingLocation, setLoadingLocation] = useState(true);
-  const [loadingEncounters, setLoadingEncounters] = useState(false); // Fix: Moved to the top
+  const [loadingEncounters, setLoadingEncounters] = useState(false);
 
   // --- API HELPER FUNCTIONS ---
 
@@ -42,18 +46,17 @@ const HuntScreen = () => {
 
       const typeNames = data.types.map(t => t.type.name.charAt(0).toUpperCase() + t.type.name.slice(1)).join('/');
       // Use the official artwork as it's often more reliable and higher quality
-      const imageUrl =
-        data.sprites.front_default ||
-        data.sprites.other.home.front_default ||
-        data.sprites.other['official-artwork'].front_default ||
-        'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/0.png';
+      // NOTE: We will use front_default for the AR screen as it's typically the smaller sprite/GIF
+      const officialArtworkUrl = data.sprites.other['official-artwork'].front_default;
+      const frontSpriteUrl = data.sprites.front_default;
 
 
       return {
         id: data.id,
         name: data.name.charAt(0).toUpperCase() + data.name.slice(1),
         type: typeNames,
-        imageUrl: imageUrl,
+        imageUrl: officialArtworkUrl, // Use official artwork for the list/map
+        spriteUrl: frontSpriteUrl,    // Use the simpler front sprite for AR overlay
       };
     } catch (error) {
       console.error("Error fetching Pokémon details:", error);
@@ -127,6 +130,7 @@ const HuntScreen = () => {
               setLoadingLocation(false);
               setLoadingEncounters(false);
           },
+          // 🚨 Robust Location Options 🚨
           { enableHighAccuracy: true, timeout: 30000, maximumAge: 5000 }
       );
   };
@@ -160,7 +164,6 @@ const HuntScreen = () => {
       }
   };
 
-  // 🚨 useEffect is a Hook and must be called unconditionally at the top level 🚨
   useEffect(() => {
     requestLocationPermission();
     configureNotifications();
@@ -185,7 +188,14 @@ const HuntScreen = () => {
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={[styles.nt, { textAlign: 'right', fontSize: 18 }]}>{item.distance} M</Text>
         <TouchableOpacity
-          onPress={() => Alert.alert("Encounter!", `You started an encounter with ${item.name}!`)}
+          // 🚨 MODIFIED onPress HANDLER to navigate to ARScreen 🚨
+          onPress={() => {
+            navigation.navigate('ARScreen', {
+                pokemonId: item.id,
+                pokemonName: item.name,
+                pokemonSpriteUrl: item.spriteUrl, // Pass the small front sprite for the AR overlay
+            });
+          }}
         >
           <Text style={styles.btn}>Capture</Text>
         </TouchableOpacity>
@@ -337,7 +347,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 10,
-    fontFamily: 'BrickSans-Bold',
+     fontFamily: 'BrickSans-Bold',
   },
   pokemonImage: {
      width: 60,
