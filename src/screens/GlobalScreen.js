@@ -18,14 +18,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Share from 'react-native-share';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import firestore, { FieldValue } from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 
-import { awardXPAndCheckBadges } from '../utils/GamificationService';
+// Uncomment if you have gamification
+// import { awardXPAndCheckBadges } from '../utils/GamificationService';
 import BottomNav from '../components/BottomNav';
 import GlobalHeader from '../components/GlobalHeader';
 
-// --- CONSTANTS ---
 const LIKES_STORAGE_KEY = '@LikedPostIds';
 const DISCOVERIES_COLLECTION = 'discoveries';
 
@@ -55,6 +55,52 @@ const INITIAL_STATIC_DISCOVERIES = [
   },
 ];
 
+const DiscoveryCard = React.memo(({ post, onLike, onShare }) => {
+  const avatarSource = post.profilePhoto
+    ? { uri: post.profilePhoto }
+    : { uri: `https://ui-avatars.com/api/?name=${post.userName}` };
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <Image source={avatarSource} style={styles.avatar} />
+        <View style={styles.headerText}>
+          <Text style={styles.userName}>{post.userName}</Text>
+          <Text style={styles.timestamp}>{new Date(post.timestamp).toLocaleDateString()}</Text>
+        </View>
+      </View>
+
+      {post.photo && <Image source={{ uri: post.photo }} style={styles.photo} resizeMode="cover" />}
+      {post.content.trim() !== '' && <Text style={styles.content}>{post.content}</Text>}
+
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={() => onLike(post.id)}>
+          <Text style={[styles.actionBtn, post.likedByCurrentUser && styles.liked]}>
+            {post.likedByCurrentUser ? '❤️' : '♡'} {post.likesCount}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.actionBtn}>💬 {post.comments.length}</Text>
+
+        <TouchableOpacity onPress={() => onShare(post)}>
+          <Text style={[styles.actionBtn, styles.shareBtn]}>🔗 Share</Text>
+        </TouchableOpacity>
+      </View>
+
+      {post.comments.length > 0 && (
+        <View style={styles.comments}>
+          {post.comments.map((c, i) => (
+            <Text key={i} style={styles.comment}>
+              <Text style={styles.commentUser}>{c.user}: </Text>
+              {c.text}
+            </Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+});
+
 const GlobalScreen = () => {
   const [discoveries, setDiscoveries] = useState([]);
   const [newPost, setNewPost] = useState('');
@@ -72,156 +118,116 @@ const GlobalScreen = () => {
     }
   }, []);
 
-  const handleLike = useCallback(
-    async (postId) => {
-      const postToLike = discoveries.find((p) => p.id === postId);
-      if (!postToLike) return;
-
-      const action = postToLike.likedByCurrentUser ? -1 : 1;
-      let updatedLikes = [];
-
-      setDiscoveries((prev) => {
-        const newDiscoveries = prev.map((post) => {
-          if (post.id === postId) {
-            const liked = !post.likedByCurrentUser;
-            return {
-              ...post,
-              likedByCurrentUser: liked,
-              likesCount: post.likesCount + action,
-            };
-          }
-          return post;
-        });
-
-        updatedLikes = newDiscoveries
-          .filter((post) => post.likedByCurrentUser)
-          .map((post) => post.id);
-
-        return newDiscoveries;
-      });
-
-      try {
-        const firestoreInstance = firestore();
-        await firestoreInstance
-          .collection(DISCOVERIES_COLLECTION)
-          .doc(postId)
-          .update({
-            likesCount: firestore.FieldValue.increment(action)
-          });
-
-        await AsyncStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(updatedLikes));
-      } catch (error) {
-        console.error('Firestore Like Failed:', error);
-        Alert.alert('Error', 'Failed to update like count.');
-      }
-    },
-    [discoveries]
-  );
-
-  const handleShare = useCallback(async (post) => {
-    const message = `Check out ${post.userName}'s Pokémon Discovery: "${post.content}" #PokeExplorer #Pokemon`;
-    const shareOptions = { title: 'Share Pokémon Discovery', message, failOnCancel: false };
-    if (post.photo) shareOptions.url = post.photo;
+  const handleLike = useCallback(async (postId) => {
+    setDiscoveries((prev) =>
+      prev.map((post) => {
+        if (post.id === postId) {
+          const liked = !post.likedByCurrentUser;
+          return { ...post, likedByCurrentUser: liked, likesCount: post.likesCount + (liked ? 1 : -1) };
+        }
+        return post;
+      })
+    );
 
     try {
-      await Share.open(shareOptions);
+      const post = discoveries.find((p) => p.id === postId);
+      const action = !post?.likedByCurrentUser ? 1 : -1;
+
+      await firestore().collection(DISCOVERIES_COLLECTION).doc(postId).update({
+        likesCount: FieldValue.increment(action),
+      });
+
+      const currentLikes = await loadLocalLikes();
+      const newLikesList = action === 1 ? [...new Set([...currentLikes, postId])] : currentLikes.filter((id) => id !== postId);
+      await AsyncStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(newLikesList));
     } catch (error) {
-      if (!error.message.includes('User did not share')) {
-        Alert.alert('Share Failed', 'Could not open sharing options.');
-      }
+      console.error(error);
+    }
+  }, [discoveries, loadLocalLikes]);
+
+  const handleShare = useCallback(async (post) => {
+    try {
+      await Share.open({
+        title: 'Share Pokémon Discovery',
+        message: `Check out ${post.userName}'s Pokémon Discovery: "${post.content}" #PokeExplorer #Pokemon`,
+        ...(post.photo && { url: post.photo }),
+        failOnCancel: false,
+      });
+    } catch (error) {
+      if (!error.message.includes('User did not share')) Alert.alert('Share Failed', 'Could not open sharing options.');
     }
   }, []);
 
-  const requestStoragePermission = async () => {
+  const requestStoragePermission = useCallback(async () => {
     if (Platform.OS !== 'android') return true;
-
     try {
       const permissionType = Platform.Version >= 33
         ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
         : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-
-      const granted = await PermissionsAndroid.request(permissionType, {
-        title: 'Storage Permission',
-        message: 'App needs access to your photos to select images.',
-        buttonNeutral: 'Ask Me Later',
-        buttonNegative: 'Cancel',
-        buttonPositive: 'OK',
-      });
-
+      const granted = await PermissionsAndroid.request(permissionType);
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     } catch (err) {
-      console.warn('Permission request failed:', err);
+      console.warn(err);
       return false;
     }
-  };
+  }, []);
 
   const selectImage = useCallback(async () => {
     const hasPermission = await requestStoragePermission();
     if (!hasPermission) {
-      Alert.alert('Permission Denied', 'Cannot access photos without permission.');
+      Alert.alert('Permission Denied', 'Please enable photo access in settings.');
       return;
     }
 
-    launchImageLibrary({ mediaType: 'photo', includeBase64: false }, (response) => {
+    launchImageLibrary({ mediaType: 'photo', includeBase64: false, quality: 0.8 }, (response) => {
       if (response.didCancel) return;
-      if (response.errorCode) {
-        Alert.alert('Image Error', response.errorMessage || 'Unknown error');
-        return;
-      }
-      if (response.assets && response.assets.length > 0) {
-        const uri = response.assets[0].uri;
-        if (uri) setNewPostImageUri(uri);
-      }
+      if (response.errorCode) return Alert.alert('Image Picker Error', response.errorMessage);
+      if (response.assets?.length > 0) setNewPostImageUri(response.assets[0].uri);
     });
+  }, [requestStoragePermission]);
+
+  useEffect(() => {
+    const seedData = async () => {
+      const snap = await firestore().collection(DISCOVERIES_COLLECTION).limit(1).get();
+      if (snap.empty) {
+        const batch = firestore().batch();
+        INITIAL_STATIC_DISCOVERIES.forEach((post) => batch.set(firestore().collection(DISCOVERIES_COLLECTION).doc(post.id), post));
+        await batch.commit();
+      }
+    };
+    seedData();
   }, []);
 
   useEffect(() => {
-    const firestoreInstance = firestore();
-    const unsubscribe = firestoreInstance
+    const unsubscribe = firestore()
       .collection(DISCOVERIES_COLLECTION)
       .orderBy('timestamp', 'desc')
-      .onSnapshot(async (querySnapshot) => {
+      .onSnapshot(async (snapshot) => {
         const likedIds = await loadLocalLikes();
-        const loadedPosts = [];
-
-        querySnapshot.forEach((doc) => {
-          const postData = doc.data();
-          let postTimestamp;
-
-          if (postData.timestamp && typeof postData.timestamp.toDate === 'function') {
-            postTimestamp = postData.timestamp.toDate().getTime();
-          } else if (typeof postData.timestamp === 'number') {
-            postTimestamp = postData.timestamp;
-          } else {
-            postTimestamp = Date.now();
-          }
-
-          loadedPosts.push({
+        const loadedPosts = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          let timestamp = Date.now();
+          if (data.timestamp?.toDate) timestamp = data.timestamp.toDate().getTime();
+          else if (typeof data.timestamp === 'number') timestamp = data.timestamp;
+          return {
             id: doc.id,
-            ...postData,
-            timestamp: postTimestamp,
+            ...data,
+            timestamp,
             likedByCurrentUser: likedIds.includes(doc.id),
-            comments: postData.comments || [],
-            likesCount: postData.likesCount || 0,
-            content: postData.content || '',
-            photo: postData.photo || null,
-            profilePhoto: postData.profilePhoto || null,
-            userName: postData.userName || 'Anonymous',
-          });
+            comments: data.comments || [],
+            likesCount: data.likesCount || 0,
+            content: data.content || '',
+            photo: data.photo || null,
+            profilePhoto: data.profilePhoto || null,
+            userName: data.userName || 'Anonymous',
+          };
         });
-
-        if (loadedPosts.length === 0) {
-          INITIAL_STATIC_DISCOVERIES.forEach((post) => {
-            firestoreInstance.collection(DISCOVERIES_COLLECTION).doc(post.id).set(post);
-          });
-        }
-
         setDiscoveries(loadedPosts);
         setIsLoading(false);
       }, (error) => {
-        console.error('Firestore Listener Failed:', error);
+        console.error(error);
         setIsLoading(false);
-        Alert.alert('Data Error', 'Failed to load community feed.');
+        Alert.alert('Data Error', 'Failed to load feed.');
       });
 
     return () => unsubscribe();
@@ -229,107 +235,51 @@ const GlobalScreen = () => {
 
   const handlePostDiscovery = async () => {
     if (!newPost.trim() && !newPostImageUri) {
-      Alert.alert('Cannot Post', 'Please enter some content or select a photo.');
+      Alert.alert('Cannot Post', 'Please enter content or select a photo.');
       return;
     }
 
     setIsPosting(true);
-    let downloadUrl = null;
-
     try {
-      const firestoreInstance = firestore();
-      const storageInstance = storage();
-      const currentUser = auth().currentUser;
-      const username = currentUser ? currentUser.email.split('@')[0] : 'Anonymous';
-
+      let downloadUrl = null;
       if (newPostImageUri) {
-        const filename = newPostImageUri.substring(newPostImageUri.lastIndexOf('/') + 1);
-        const storageRef = storageInstance.ref(`discoveries/${Date.now()}_${filename}`);
-        let uploadUri = newPostImageUri.startsWith('file://') ? newPostImageUri.replace('file://', '') : newPostImageUri;
-        await storageRef.putFile(uploadUri);
-        downloadUrl = await storageRef.getDownloadURL();
+        const filename = newPostImageUri.split('/').pop();
+        const ref = storage().ref(`discoveries/${Date.now()}_${filename}`);
+        let uploadUri = newPostImageUri;
+        if (Platform.OS === 'android' && !uploadUri.startsWith('file://')) uploadUri = 'file://' + uploadUri;
+        await ref.putFile(uploadUri);
+        downloadUrl = await ref.getDownloadURL();
       }
 
-      const newDiscoveryData = {
-        userId: currentUser ? currentUser.uid : 'unknown',
+      const currentUser = auth().currentUser;
+      const username = currentUser?.email?.split('@')[0] || 'Anonymous';
+
+      await firestore().collection(DISCOVERIES_COLLECTION).add({
+        userId: currentUser?.uid || 'unknown',
         userName: username,
-        userEmail: currentUser ? currentUser.email : '',
-        timestamp: firestore.FieldValue.serverTimestamp(),
+        userEmail: currentUser?.email || '',
+        timestamp: FieldValue.serverTimestamp(),
         content: newPost.trim(),
         likesCount: 0,
         comments: [],
         photo: downloadUrl,
         profilePhoto: `https://ui-avatars.com/api/?name=${username}`,
-      };
+      });
 
-      await firestoreInstance.collection(DISCOVERIES_COLLECTION).add(newDiscoveryData);
+      // await awardXPAndCheckBadges(currentUser.email, 'FIRST_DISCOVERY_POST');
 
-      if (currentUser?.email) {
-        await awardXPAndCheckBadges(currentUser.email, 'FIRST_DISCOVERY_POST');
-      }
-
-      Alert.alert('Success!', 'Your discovery has been posted. XP earned!');
-    } catch (error) {
-      console.error('Posting Error:', error.message, error.code);
-      Alert.alert('Post Error', `Failed to upload or post: ${error.message}`);
-    } finally {
       setNewPost('');
       setNewPostImageUri(null);
+      Alert.alert('Success', 'Discovery posted!');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to post discovery.');
+    } finally {
       setIsPosting(false);
     }
   };
 
-  const DiscoveryCard = ({ post }) => {
-    const avatarSource = post.profilePhoto
-      ? { uri: post.profilePhoto }
-      : { uri: `https://ui-avatars.com/api/?name=${post.userName}` };
-
-    return (
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <Image source={avatarSource} style={styles.avatar} />
-          <View style={styles.headerText}>
-            <Text style={styles.userName}>{post.userName}</Text>
-            <Text style={styles.timestamp}>{new Date(post.timestamp).toLocaleDateString()}</Text>
-          </View>
-        </View>
-
-        {post.photo && <Image source={{ uri: post.photo }} style={styles.photo} resizeMode="cover" />}
-        {post.content.trim() !== '' && <Text style={styles.content}>{post.content}</Text>}
-
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={() => handleLike(post.id)}>
-            <Text style={[styles.actionBtn, post.likedByCurrentUser && styles.liked]}>
-              {post.likedByCurrentUser ? '❤️' : '♡'} {post.likesCount}
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.actionBtn}>💬 {post.comments.length}</Text>
-          <TouchableOpacity onPress={() => handleShare(post)}>
-            <Text style={[styles.actionBtn, styles.shareBtn]}>🔗 Share</Text>
-          </TouchableOpacity>
-        </View>
-
-        {post.comments.length > 0 && (
-          <View style={styles.comments}>
-            {post.comments.map((c, i) => (
-              <Text key={i} style={styles.comment}>
-                <Text style={styles.commentUser}>{c.user}: </Text>{c.text}
-              </Text>
-            ))}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text>Loading Discoveries...</Text>
-      </View>
-    );
-  }
+  if (isLoading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#007AFF" /></View>;
 
   return (
     <ImageBackground source={require('../assets/test2.png')} style={styles.background} blurRadius={1}>
@@ -344,23 +294,12 @@ const GlobalScreen = () => {
             onChangeText={setNewPost}
             multiline
           />
-
-          <TouchableOpacity
-            style={[styles.imageSelectBtn, newPostImageUri && styles.imageSelectedBtn]}
-            onPress={selectImage}
-            disabled={false} // allow picking anytime
-          >
-            <Text style={styles.imageSelectBtnText}>
-              {newPostImageUri ? '✅ Image Selected' : 'Select Image'}
-            </Text>
+          <TouchableOpacity style={[styles.imageSelectBtn, newPostImageUri && styles.imageSelectedBtn]} onPress={selectImage}>
+            <Text style={styles.imageSelectBtnText}>{newPostImageUri ? '✅ Image Selected' : 'Select Image'}</Text>
             {newPostImageUri && <Text style={styles.imageSelectBtnTextSecondary}>(Tap to change)</Text>}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.postBtn, isPosting && styles.disabledPostBtn]}
-            onPress={handlePostDiscovery}
-            disabled={isPosting}
-          >
+          <TouchableOpacity style={[styles.postBtn, isPosting && styles.disabledPostBtn]} onPress={handlePostDiscovery}>
             <Text style={styles.postBtnText}>{isPosting ? 'Posting...' : 'Post Discovery'}</Text>
           </TouchableOpacity>
         </View>
@@ -368,7 +307,7 @@ const GlobalScreen = () => {
         <FlatList
           data={discoveries}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <DiscoveryCard post={item} />}
+          renderItem={({ item }) => <DiscoveryCard post={item} onLike={handleLike} onShare={handleShare} />}
           contentContainerStyle={{ paddingBottom: 60 }}
         />
 
@@ -389,17 +328,17 @@ const styles = StyleSheet.create({
   imageSelectedBtn: { backgroundColor: '#3b4cca' },
   imageSelectBtnText: { color: '#532221', fontSize: 14 },
   imageSelectBtnTextSecondary: { color: '#fff', fontSize: 10 },
-  postBtn: { backgroundColor: '#3b4cca', padding: 10, elevation: 6, borderRadius: 5, alignItems: 'center', marginTop: 5 },
+  postBtn: { backgroundColor: '#3b4cca', padding: 10, borderRadius: 5, alignItems: 'center', marginTop: 5 },
   disabledPostBtn: { opacity: 0.6 },
-  postBtnText: { color: '#fff', fontSize: 14, letterSpacing: 1.2 },
-  card: { backgroundColor: '#fff', marginBottom: 10, padding: 12, borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, elevation: 2 },
+  postBtnText: { color: '#fff', fontSize: 14 },
+  card: { backgroundColor: '#fff', marginBottom: 10, padding: 12, borderRadius: 8, elevation: 2 },
   header: { flexDirection: 'row', marginBottom: 10, alignItems: 'center' },
   avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 10, borderWidth: 2, borderColor: '#007AFF' },
   headerText: { justifyContent: 'center' },
-  userName: { fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
+  userName: { fontSize: 16, fontWeight: 'bold' },
   timestamp: { fontSize: 12, color: '#888' },
   photo: { width: '100%', height: 200, marginBottom: 10, borderRadius: 8, backgroundColor: '#eee' },
-  content: { fontSize: 14, marginBottom: 10, lineHeight: 20 },
+  content: { fontSize: 14, marginBottom: 10 },
   actions: { flexDirection: 'row', gap: 15, paddingVertical: 5 },
   actionBtn: { fontSize: 16, color: '#007AFF' },
   shareBtn: { color: '#00B8D9', fontWeight: '600' },
