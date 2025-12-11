@@ -271,7 +271,7 @@ const GlobalScreen = () => {
       if (newPostImageUri) {
         // 1. Setup paths
         const filename = newPostImageUri.substring(newPostImageUri.lastIndexOf('/') + 1);
-        const storageRef = storageInstance.ref(`discoveries/${Date.now()}_${filename}`);
+        const storageRef = storage().ref(`discoveries/${Date.now()}_${filename}`);
 
         // 🌟 FIX: URI Cleaning for Storage Upload 🌟
         let uploadUri = newPostImageUri;
@@ -279,7 +279,9 @@ const GlobalScreen = () => {
           uploadUri = uploadUri.replace('file://', '');
         }
 
+
         await storageRef.putFile(uploadUri);
+
 
         // 3. Get the public download URL
         downloadUrl = await storageRef.getDownloadURL();
