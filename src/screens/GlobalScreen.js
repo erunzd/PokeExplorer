@@ -131,7 +131,7 @@ const GlobalScreen = () => {
   }, []);
 
   const handleLike = useCallback(async (postId) => {
-    // Optimistic Update (Update UI immediately)
+    // Optimistic UI update
     setDiscoveries((prev) => {
       return prev.map((post) => {
         if (post.id === postId) {
@@ -147,10 +147,14 @@ const GlobalScreen = () => {
     });
 
     try {
-      const post = discoveries.find(p => p.id === postId);
-      const action = !post.likedByCurrentUser ? 1 : -1; 
-
       const firestoreInstance = firestore();
+      // fetch current post liked state from local state
+      const currentPosts = await AsyncStorage.getItem(LIKES_STORAGE_KEY);
+      const likedPosts = currentPosts ? JSON.parse(currentPosts) : [];
+
+      const isLiked = likedPosts.includes(postId);
+      const action = isLiked ? -1 : 1;
+
       await firestoreInstance
         .collection(DISCOVERIES_COLLECTION)
         .doc(postId)
@@ -159,20 +163,18 @@ const GlobalScreen = () => {
         });
 
       // Update Local Storage
-      const currentLikes = await loadLocalLikes();
       let newLikesList;
       if (action === 1) {
-        newLikesList = [...new Set([...currentLikes, postId])];
+        newLikesList = [...new Set([...likedPosts, postId])];
       } else {
-        newLikesList = currentLikes.filter(id => id !== postId);
+        newLikesList = likedPosts.filter((id) => id !== postId);
       }
       await AsyncStorage.setItem(LIKES_STORAGE_KEY, JSON.stringify(newLikesList));
-
     } catch (error) {
       console.error('Firestore Like Failed:', error);
-      // In a real app, you would revert the optimistic state here
     }
-  }, [discoveries, loadLocalLikes]);
+  }, []);
+
 
   const handleShare = useCallback(async (post) => {
     const message = `Check out ${post.userName}'s Pokémon Discovery: "${post.content}" #PokeExplorer #Pokemon`;
@@ -224,18 +226,23 @@ const GlobalScreen = () => {
       mediaType: 'photo',
       includeBase64: false,
       quality: 0.8,
-      // FIX: Removed 'selectionLimit: 1' to resolve 'No Activity Found' error
     };
 
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
+    try {
+      const result = await launchImageLibrary(options);
+
+      if (result.didCancel) {
         console.log('User cancelled image picker');
-      } else if (response.errorCode) {
-        Alert.alert('Image Picker Error', response.errorMessage);
-      } else if (response.assets && response.assets.length > 0) {
-        setNewPostImageUri(response.assets[0].uri);
+      } else if (result.errorCode) {
+        Alert.alert('Image Picker Error', result.errorMessage);
+      } else if (result.assets && result.assets.length > 0) {
+        setNewPostImageUri(result.assets[0].uri);
+      } else {
+        Alert.alert('Image Picker', 'No image selected.');
       }
-    });
+    } catch (error) {
+      Alert.alert('Image Picker Error', error.message);
+    }
   }, [requestStoragePermission]);
 
   // ------------------------------------
