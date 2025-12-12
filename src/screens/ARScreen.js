@@ -1,5 +1,3 @@
-// src/screens/ARScreen.js
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -18,8 +16,9 @@ import axios from 'axios';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
-import BottomNav from '../components/BottomNav';
 import { captureRef } from 'react-native-view-shot';
+import BottomNav from '../components/BottomNav';
+import { awardXPAndCheckBadges } from '../utils/GamificationService';
 
 const CAPTURES_KEY = '@pokemon_captures_gallery';
 
@@ -28,14 +27,12 @@ const ARScreen = ({ navigation }) => {
   const {
     pokemonId: initialPokemonId,
     pokemonName: initialPokemonName,
-    pokemonSpriteUrl: initialPokemonSpriteUrl
+    pokemonSpriteUrl: initialPokemonSpriteUrl,
   } = route.params || {};
 
   const { hasPermission, requestPermission } = useCameraPermission();
   const cameraDevice = useCameraDevice('back');
   const cameraRef = useRef(null);
-
-  // THIS REF wraps camera + sprite for snapshotting
   const combinedViewRef = useRef(null);
 
   const [pokemonData, setPokemonData] = useState(
@@ -44,32 +41,26 @@ const ARScreen = ({ navigation }) => {
       : null
   );
 
-  const [loadingPokemon, setLoadingPokemon] = useState(
-    !initialPokemonId || !initialPokemonName || !initialPokemonSpriteUrl
-  );
-
+  const [loadingPokemon, setLoadingPokemon] = useState(!initialPokemonId || !initialPokemonName || !initialPokemonSpriteUrl);
   const [cameraPermissionStatus, setCameraPermissionStatus] = useState('checking...');
   const [isPokemonVisible, setIsPokemonVisible] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
 
   const fetchPokemonSprite = useCallback(async (id = '25') => {
     if (pokemonData) return;
-
     try {
       const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${id}`);
       const spriteUrl = response.data.sprites.front_default;
-
       setPokemonData({
+        id: id,
         name: response.data.name.charAt(0).toUpperCase() + response.data.name.slice(1),
         sprite: spriteUrl,
       });
-
       setTimeout(() => setIsPokemonVisible(true), 1000);
-
     } catch (error) {
-      console.error("Error fetching Pokémon:", error);
-      Alert.alert("API Error", "Could not fetch Pokémon sprite from PokeAPI (Fallback failed).");
-      setPokemonData({ name: 'Error', sprite: null });
+      console.error('Error fetching Pokémon:', error);
+      Alert.alert('API Error', 'Could not fetch Pokémon sprite from PokeAPI.');
+      setPokemonData({ id: null, name: 'Error', sprite: null });
     } finally {
       setLoadingPokemon(false);
     }
@@ -81,53 +72,40 @@ const ARScreen = ({ navigation }) => {
         requestPermission().then(granted => {
           setCameraPermissionStatus(granted ? 'enabled' : 'disabled');
           if (!granted) {
-            Alert.alert("Permission Required", "Camera access is needed to use the AR feature.");
+            Alert.alert('Permission Required', 'Camera access is needed to use the AR feature.');
           }
         });
       }, 500);
       return () => clearTimeout(delayTimer);
     }
 
-    if (!pokemonData) {
-      fetchPokemonSprite();
-    } else {
+    if (!pokemonData) fetchPokemonSprite();
+    else {
       setTimeout(() => setIsPokemonVisible(true), 500);
       setLoadingPokemon(false);
     }
   }, [hasPermission, requestPermission, fetchPokemonSprite, pokemonData]);
 
   useEffect(() => {
-    if (hasPermission && cameraDevice) {
-      setCameraPermissionStatus('enabled');
-    } else if (hasPermission === false) {
-      setCameraPermissionStatus('disabled');
-    }
+    if (hasPermission && cameraDevice) setCameraPermissionStatus('enabled');
+    else if (hasPermission === false) setCameraPermissionStatus('disabled');
   }, [hasPermission, cameraDevice]);
 
   const currentPokemonName = pokemonData ? pokemonData.name : 'Unknown Pokémon';
   const currentPokemonSprite = pokemonData ? pokemonData.sprite : null;
+  const currentPokemonId = pokemonData ? pokemonData.id : null;
 
   const handleCapture = async () => {
     if (!isPokemonVisible || isCapturing || !combinedViewRef.current) {
-      Alert.alert("Error", "Pokémon not visible or camera not ready.");
+      Alert.alert('Error', 'Pokémon not visible or camera not ready.');
       return;
     }
 
     setIsCapturing(true);
-
     try {
-      // Delay a bit to ensure view is fully rendered
       await new Promise(resolve => setTimeout(resolve, 100));
-
-      const uri = await captureRef(combinedViewRef, {
-        format: 'png',
-        quality: 1,
-      });
-
-      const savedUri = await CameraRoll.save(uri, {
-        type: 'photo',
-        album: 'PokeExplorer Captures',
-      });
+      const uri = await captureRef(combinedViewRef, { format: 'png', quality: 1 });
+      const savedUri = await CameraRoll.save(uri, { type: 'photo', album: 'PokeExplorer Captures' });
 
       const captureData = {
         id: Date.now().toString(),
@@ -139,54 +117,40 @@ const ARScreen = ({ navigation }) => {
 
       const existingCapturesJSON = await AsyncStorage.getItem(CAPTURES_KEY);
       const existingCaptures = existingCapturesJSON ? JSON.parse(existingCapturesJSON) : [];
-
       const newCaptures = [captureData, ...existingCaptures];
       await AsyncStorage.setItem(CAPTURES_KEY, JSON.stringify(newCaptures));
 
-      Alert.alert("Capture Successful!", `${currentPokemonName} saved to your Gallery!`);
+      // Gamification: award XP and check badges
+      const userEmail = await AsyncStorage.getItem('@user_email');
+      if (userEmail && currentPokemonId) {
+        await awardXPAndCheckBadges(userEmail, 'POKEMON_CAPTURE', currentPokemonId);
+      }
+
+      Alert.alert('Capture Successful!', `${currentPokemonName} saved to your Gallery! XP earned.`);
     } catch (error) {
       console.error('Photo Capture Error:', error);
-      Alert.alert("Capture Failed", `Could not save photo: ${error.message}`);
+      Alert.alert('Capture Failed', `Could not save photo: ${error.message}`);
     } finally {
       setIsCapturing(false);
     }
   };
 
-  const handleGallery = () => {
-    navigation.navigate('Profile');
-  };
+  const handleGallery = () => navigation.navigate('Profile');
 
   return (
-    <ImageBackground
-      source={require('../assets/test2.png')}
-      style={styles.background}
-      blurRadius={1}
-    >
+    <ImageBackground source={require('../assets/test2.png')} style={styles.background} blurRadius={1}>
       <View style={styles.backdropOverlay} />
 
-      {/* WRAP CAMERA + SPRITE FOR CAPTURE */}
-      <View
-        ref={combinedViewRef}
-        style={styles.cameraContainer}
-        collapsable={false}  // Important for Android to capture properly
-      >
+      <View ref={combinedViewRef} style={styles.cameraContainer} collapsable={false}>
         {hasPermission && cameraDevice ? (
-          <Camera
-            ref={cameraRef}
-            style={StyleSheet.absoluteFill}
-            device={cameraDevice}
-            isActive={true}
-            photo={true}
-          />
+          <Camera ref={cameraRef} style={StyleSheet.absoluteFill} device={cameraDevice} isActive photo />
         ) : (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#fdd400" />
             <Text style={styles.loadingText}>
-              {hasPermission === false ? "Camera Permission Denied" : "Loading AR Camera..."}
+              {hasPermission === false ? 'Camera Permission Denied' : 'Loading AR Camera...'}
             </Text>
-            {!cameraDevice && hasPermission && (
-              <Text style={styles.loadingText}>Searching for camera device...</Text>
-            )}
+            {!cameraDevice && hasPermission && <Text style={styles.loadingText}>Searching for camera device...</Text>}
           </View>
         )}
 
@@ -198,11 +162,7 @@ const ARScreen = ({ navigation }) => {
         ) : (
           isPokemonVisible && (
             <View style={styles.pokemonContainer}>
-              <Image
-                source={{ uri: pokemonData.sprite }}
-                style={styles.pokemonSprite}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: pokemonData.sprite }} style={styles.pokemonSprite} resizeMode="contain" />
               <Text style={styles.pokemonNameTag}>A Wild {currentPokemonName} Appears!</Text>
             </View>
           )
@@ -213,16 +173,13 @@ const ARScreen = ({ navigation }) => {
         <View style={styles.row}>
           <TouchableOpacity
             onPress={handleCapture}
-            disabled={!hasPermission || !isPokemonVisible || isCapturing || cameraDevice == null}
-            style={[styles.buttonContainer, (!hasPermission || !isPokemonVisible || isCapturing || cameraDevice == null) && styles.disabledBtn]}
+            disabled={!hasPermission || !isPokemonVisible || isCapturing || !cameraDevice}
+            style={[styles.buttonContainer, (!hasPermission || !isPokemonVisible || isCapturing || !cameraDevice) && styles.disabledBtn]}
           >
             <Text style={styles.buttonText}>{isCapturing ? 'Saving...' : 'Capture'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleGallery}
-            style={[styles.buttonContainer, { backgroundColor: '#fdd400' }]}
-          >
+          <TouchableOpacity onPress={handleGallery} style={[styles.buttonContainer, { backgroundColor: '#fdd400' }]}>
             <Text style={[styles.buttonText, { color: '#532221' }]}>Gallery</Text>
           </TouchableOpacity>
         </View>
@@ -241,116 +198,23 @@ const ARScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
-  },
-  background: {
-    flex: 1,
-    width: '100%',
-  },
-  backdropOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10
-  },
-
-  cameraContainer: {
-    height: 350,
-    width: '100%',
-    backgroundColor: '#000',
-    marginTop: 60,
-    position: 'relative',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pokemonLoading: {
-    position: 'absolute',
-    top: '50%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  loadingText: {
-    color: '#fff',
-    marginTop: 10,
-  },
-  pokemonContainer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  pokemonSprite: {
-    width: 250,
-    height: 250,
-  },
-  pokemonNameTag: {
-    color: '#fff',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 5,
-    marginTop: 5,
-    fontWeight: 'bold',
-  },
-
-  row: {
-    marginTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 20,
-  },
-  buttonContainer: {
-    backgroundColor: '#3b4cca',
-    paddingHorizontal: 35,
-    borderRadius: 5,
-    elevation: 6,
-    padding: 20,
-    flex: 1,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 24,
-    letterSpacing: 1.2,
-    textAlign: 'center',
-    fontFamily: 'BrickSans-Bold',
-  },
-  disabledBtn: {
-    opacity: 0.5,
-  },
-  col: {
-    marginTop: 20,
-    flexDirection: 'column',
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 5,
-    elevation: 6,
-  },
-  title: {
-    color: '#532221',
-    fontSize: 30,
-    letterSpacing: 1.2,
-    marginBottom: 5,
-    fontFamily: 'BrickSans-Bold',
-  },
-  status: {
-    fontSize: 16,
-    color: '#532221',
-    fontWeight: '500',
-    paddingVertical: 2,
-  },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  background: { flex: 1, width: '100%' },
+  backdropOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
+  cameraContainer: { height: 350, width: '100%', backgroundColor: '#000', marginTop: 60, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative' },
+  pokemonLoading: { position: 'absolute', top: '50%', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+  loadingText: { color: '#fff', marginTop: 10 },
+  pokemonContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+  pokemonSprite: { width: 250, height: 250 },
+  pokemonNameTag: { color: '#fff', backgroundColor: 'rgba(0, 0, 0, 0.6)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 5, marginTop: 5, fontWeight: 'bold' },
+  row: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', gap: 20 },
+  buttonContainer: { backgroundColor: '#3b4cca', paddingHorizontal: 35, borderRadius: 5, elevation: 6, padding: 20, flex: 1 },
+  buttonText: { color: '#fff', fontSize: 24, letterSpacing: 1.2, textAlign: 'center', fontFamily: 'BrickSans-Bold' },
+  disabledBtn: { opacity: 0.5 },
+  col: { marginTop: 20, flexDirection: 'column', backgroundColor: '#fff', padding: 20, borderRadius: 5, elevation: 6 },
+  title: { color: '#532221', fontSize: 30, letterSpacing: 1.2, marginBottom: 5, fontFamily: 'BrickSans-Bold' },
+  status: { fontSize: 16, color: '#532221', fontWeight: '500', paddingVertical: 2 },
 });
 
 export default ARScreen;
